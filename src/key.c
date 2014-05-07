@@ -383,7 +383,7 @@ static PyObject* KeyObject_from_ssh(PyObject *c, PyObject *string)
 	EC_POINT *point;
 
 	char *buffer = NULL, *buffer_in;
-	size_t buffer_len = 0;
+	size_t buffer_len = 0, buffer_in_len = 0;
 
 	char *key_name = NULL;
 	size_t key_name_len = 0;
@@ -408,8 +408,9 @@ static PyObject* KeyObject_from_ssh(PyObject *c, PyObject *string)
 	}
 
 	buffer_in = buffer;
+	buffer_in_len = buffer_len;
 
-	if (!read_str(&buffer_in, &key_name, &key_name_len))
+	if (!read_str(&buffer_in, &buffer_in_len, &key_name, &key_name_len))
 	{
 		PyErr_SetString(PyExc_ValueError, "Can't read key type from key");
 		goto key_from_ssh_cleanup;
@@ -420,7 +421,7 @@ static PyObject* KeyObject_from_ssh(PyObject *c, PyObject *string)
 		goto key_from_ssh_cleanup;
 	}
 
-	if (!read_str(&buffer_in, &curve_name, &curve_name_len))
+	if (!read_str(&buffer_in, &buffer_in_len, &curve_name, &curve_name_len))
 	{
 		PyErr_SetString(PyExc_ValueError, "Can't read curve type from key");
 		goto key_from_ssh_cleanup;
@@ -447,7 +448,7 @@ static PyObject* KeyObject_from_ssh(PyObject *c, PyObject *string)
 		goto destroy_key_from_ssh_cleanup;
 	}
 
-	if (!read_point(&buffer_in, EC_KEY_get0_group(ret->key), point))
+	if (!read_point(&buffer_in, &buffer_in_len, EC_KEY_get0_group(ret->key), point))
 	{
 		PyErr_SetString(PyExc_ValueError, "Can't read key point");
 		goto destroy_key_from_ssh_cleanup;

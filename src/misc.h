@@ -95,7 +95,7 @@ static inline void write_str(char **str, const char *v, uint32_t len)
 	*str += len;
 }
 
-static inline uint32_t read_u32(char **s)
+static inline uint32_t read_u32(char **s, size_t *s_len)
 {
 	uint32_t res;
 	res = (uint32_t)((*s)[0]) << 24;
@@ -103,13 +103,20 @@ static inline uint32_t read_u32(char **s)
 	res |= (uint32_t)((*s)[2]) << 8;
 	res |= (uint32_t)((*s)[3]);
 	*s += 4;
+    *s_len -= 4;
 	return res;
 }
 
-static inline int read_str(char **src, char **str, size_t *len)
+static inline int read_str(char **src, size_t *src_len, char **str, size_t *len)
 {
 	*str = NULL;
-	*len = (size_t)read_u32(src);
+    if (*src_len <= 4)
+        return 0;
+
+	*len = (size_t)read_u32(src, src_len);
+
+    if (*len > *src_len || *len == 0)
+        return 0;
 
 	if ((*str = (char *)malloc(*len + 1)) == NULL)
 		return 0;
@@ -117,18 +124,19 @@ static inline int read_str(char **src, char **str, size_t *len)
 	memcpy(*str, *src, *len);
 	(*str)[*len] = 0;
 	*src += *len;
+    *src_len -= *len;
 
 	return 1;
 }
 
-static inline int read_point(char **str, const EC_GROUP *curve, EC_POINT *point)
+static inline int read_point(char **str, size_t *str_len, const EC_GROUP *curve, EC_POINT *point)
 {
 	BN_CTX *bnctx;
 	int res = 0;
 	char *buf;
 	size_t buf_len;
 
-	if (!read_str(str, &buf, &buf_len))
+	if (!read_str(str, str_len, &buf, &buf_len))
 		goto rp_cleanup;
 	if (!buf_len)
 		goto rp_cleanup;
