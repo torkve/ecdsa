@@ -284,13 +284,11 @@ static void KeyObject_dealloc(KeyObject *self)
 	PyObject_Del(self);
 }
 
-/*static int KeyObject_init(KeyObject *self, PyObject *args, PyObject **kwargs)
+static int KeyObject_init(KeyObject *self, PyObject *args, PyObject **kwargs)
 {
-	PyObject *flag = NULL;
-	static char *kwlist[] = {"internal_flag__", NULL};
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "", kwlist, &first))
-		return -1; // One mustn't call 
-}*/
+	PyErr_SetString(PyExc_ArgumentError, "You mustn't instantiate Key object yourself");
+	return -1; // One mustn't call 
+}
 
 static PyObject* KeyObject_getattr(PyObject *s, char *name)
 {
@@ -500,6 +498,7 @@ initecdsa()
 
 	key_Type.tp_new = PyType_GenericNew;
 	key_Type.tp_methods = KeyObject_methods;
+	key_Type.tp_init = (initproc)KeyObject_init;
 	if (PyType_Ready(&key_Type) < 0)
 		return;
 
