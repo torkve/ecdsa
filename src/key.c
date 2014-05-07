@@ -1,8 +1,6 @@
-#include "Python.h"
-#include <openssl/bn.h>
-#include <openssl/ec.h>
+#include "misc.h"
+#include <Python.h>
 #include <openssl/ecdsa.h>
-#include <openssl/evp.h>
 
 #ifndef PyLong_FromLong
 #define PyLong_FromLong PyInt_FromLong
@@ -12,81 +10,95 @@
 
 typedef struct
 {
-	char *name;
-	int nid;
-	int bits;
-} keytype;
-
-static const keytype keytypes[] =
-{
-	{"ecdsa-sha2-nistp256", NID_X9_62_prime256v1, 256},
-	{"ecdsa-sha2-nistp384", NID_secp384r1, 384},
-	{"ecdsa-sha2-nistp521", NID_secp521r1, 521},
-	{NULL, 0, 0},
-};
-
-/* Helper functions */
-
-static const char *curve_name_of_nid(int nid)
-{
-	if (nid == NID_X9_62_prime256v1)
-		return "nistp256";
-	if (nid == NID_secp384r1)
-		return "nistp384";
-	if (nid == NID_secp521r1)
-		return "nistp521";
-	return NULL;
-}
-
-static const char *nid_name_of_nid(int nid)
-{
-	const keytype *kt;
-	for (kt = keytypes; kt->name != NULL; ++kt)
-		if (kt->nid == nid)
-			return kt->name;
-	return NULL;
-}
-
-static int nid_of_bits(int bits)
-{
-	const keytype *kt;
-	for (kt = keytypes; kt->name != NULL; ++kt)
-		if (kt->bits == bits)
-			return kt->nid;
-	return -1;
-}
-
-static const char *nid_name_of_bits(int bits)
-{
-	const keytype *kt;
-	for (kt = keytypes; kt->name != NULL; ++kt)
-		if (kt->bits == bits)
-			return kt->name;
-	return NULL;
-}
-
-inline void write_u32(char **str, uint32_t i)
-{
-	(*str)[0] = (unsigned char)(i >> 24) & 0xff;
-	(*str)[1] = (unsigned char)(i >> 16) & 0xff;
-	(*str)[2] = (unsigned char)(i >> 8) & 0xff;
-	(*str)[3] = (unsigned char)i & 0xff;
-	*str += 4;
-}
-
-inline void write_str(char **str, const char *v, uint32_t len)
-{
-	write_u32(str, len);
-	memcpy(*str, v, len);
-	*str += len;
-}
-
-typedef struct
-{
 	PyObject_HEAD
 	int nid;
 	EC_KEY *key;
 } KeyObject; 
+
+int validate_public_key(const EC_GROUP *curve, const EC_POINT *point)
+{
+	BN_CTX *bnctx = NULL;
+	BIGNUM *x, *y, *order, *tmp;
+	EC_POINT *q = NULL;
+
+	int res = 0;
+
+	if ((bnctx = BN_CTX_new()) == NULL)
+	{
+		PyErr_SetString(PyExc_MemoryError, "Cannot create key buffer");
+		goto vpk_cleanup;
+	}
+	BN_CTX_start(bnctx);
+
+	if (EC_METHOD_get_field_type(EC_GROUP_method_of(curve)) != NID_X9_62_prime_field)
+	{
+		PyErr_SetString(PyExc_ValueError, "Invalid prime field");
+		goto vpk_cleanup;
+	}
+
+	if (EC_POINT_is_at_infinity(curve, point))
+	{
+		PyErr_SetString(PyExc_ValueError, "Degenerated public key (inifinity)");
+		goto vpk_cleanup;
+	}
+
+	if (
+		(x = BN_CTX_get(bnctx)) == NULL
+		|| (y = BN_CTX_get(bnctx)) == NULL
+		|| (order = BN_CTX_get(bnctx)) == NULL
+		|| (tmp = BN_CTX_get(bnctx)) == NULL
+	)
+	{
+		PyErr_SetString(PyExc_MemoryError, "Cannot create key buffer");
+		goto vpk_cleanup;
+	}
+
+	if (EC_GROUP_get_order(curve, order, bnctx) != 1)
+	{
+		PyErr_SetString(PyExc_ValueError, "Can't get key order");
+		goto vpk_cleanup;
+	}
+	if (EC_POINT_get_affine_coordinates_GFp(curve, point, x, y, bnctx) != 1)
+	{
+		PyErr_SetString(PyExc_ValueError, "Can't get key affine coordinates");
+		goto vpk_cleanup;
+	}
+	if ((BN_num_bits(x) <= BN_num_bits(order) / 2) || (BN_num_bits(y) <= BN_num_bits(order) / 2))
+	{
+		PyErr_SetString(PyExc_ValueError, "Public key coordinates are too small");
+		goto vpk_cleanup;
+	}
+
+	if ((q = EC_POINT_new(curve)) == NULL)
+	{
+		PyErr_SetString(PyExc_MemoryError, "Cannot create key point");
+		goto vpk_cleanup;
+	}
+	if (EC_POINT_mul(curve, q, NULL, point, order, bnctx) != 1)
+	{
+		PyErr_SetString(PyExc_MemoryError, "Cannot multiply points");
+		goto vpk_cleanup;
+	}
+	if (EC_POINT_is_at_infinity(curve, q) != 1)
+	{
+		 PyErr_SetString(PyExc_ValueError, "Degenerated public key");
+		 goto vpk_cleanup;
+	}
+	if (!BN_sub(tmp, order, BN_value_one()) || (BN_cmp(x, tmp) >= 0) || (BN_cmp(y, tmp) >= 0))
+	{
+		PyErr_SetString(PyExc_ValueError, "Point coordinates don't match the order");
+		goto vpk_cleanup;
+	}
+
+	res = 1;
+vpk_cleanup:
+	if (bnctx)
+		BN_CTX_free(bnctx);
+	if (q)
+		EC_POINT_free(q);
+
+	return res;
+}
 
 int public_key_to_ssh(char **buffer, size_t *len, EC_KEY *key, int nid)
 {
@@ -144,6 +156,7 @@ pks_cleanup:
 		BN_CTX_free(bnctx);
 	return res;
 }
+
 /* Object methods */
 
 static PyObject* KeyObject_nid_name(PyObject *s)
@@ -367,7 +380,109 @@ static PyObject* KeyObject_from_pem(PyObject *c, PyObject *string)
 
 static PyObject* KeyObject_from_ssh(PyObject *c, PyObject *string)
 {
-	return NULL;
+	EC_POINT *point;
+
+	char *buffer = NULL, *buffer_in;
+	size_t buffer_len = 0;
+
+	char *key_name = NULL;
+	size_t key_name_len = 0;
+
+	char *curve_name = NULL;
+	size_t curve_name_len = 0;
+
+	KeyObject *ret = NULL;
+	int nid = 0;
+
+	Py_ssize_t string_len = PyString_Size(string);
+
+	if (string_len <= 0)
+	{
+		PyErr_SetString(PyExc_ValueError, "Invalid string provided");
+		goto key_from_ssh_cleanup;
+	}
+	if (!decode_base64(PyString_AsString(string), string_len, &buffer, &buffer_len))
+	{
+		PyErr_SetString(PyExc_ValueError, "Invalid Base64 data");
+		goto key_from_ssh_cleanup;
+	}
+
+	buffer_in = buffer;
+
+	if (!read_str(&buffer_in, &key_name, &key_name_len))
+	{
+		PyErr_SetString(PyExc_ValueError, "Can't read key type from key");
+		goto key_from_ssh_cleanup;
+	}
+	if ((nid = nid_of_nid_name(key_name)) == 0)
+	{
+		PyErr_SetString(PyExc_ValueError, "Unsupported key format");
+		goto key_from_ssh_cleanup;
+	}
+
+	if (!read_str(&buffer_in, &curve_name, &curve_name_len))
+	{
+		PyErr_SetString(PyExc_ValueError, "Can't read curve type from key");
+		goto key_from_ssh_cleanup;
+	}
+	if (nid != nid_of_curve_name(curve_name))
+	{
+		PyErr_SetString(PyExc_ValueError, "Key and curve types don't match");
+		goto key_from_ssh_cleanup;
+	}
+
+	ret = (KeyObject *)PyObject_New(KeyObject, &key_Type);
+	if (ret == NULL)
+	{
+		PyErr_SetString(PyExc_MemoryError, "Can't create key object");
+		goto key_from_ssh_cleanup;
+	}
+
+	ret->nid = nid;
+	ret->key = EC_KEY_new_by_curve_name(nid);
+
+	if ((point = EC_POINT_new(EC_KEY_get0_group(ret->key))) == NULL)
+	{
+		PyErr_SetString(PyExc_ValueError, "Can't create key point");
+		goto destroy_key_from_ssh_cleanup;
+	}
+
+	if (!read_point(&buffer_in, EC_KEY_get0_group(ret->key), point))
+	{
+		PyErr_SetString(PyExc_ValueError, "Can't read key point");
+		goto destroy_key_from_ssh_cleanup;
+	}
+
+	if (EC_KEY_set_public_key(ret->key, point) != 1)
+	{
+		PyErr_SetString(PyExc_ValueError, "Can't apply public key");
+		goto destroy_key_from_ssh_cleanup;
+	}
+
+	if (!validate_public_key(EC_KEY_get0_group(ret->key), point))
+		goto destroy_key_from_ssh_cleanup;
+	
+	goto key_from_ssh_cleanup;
+
+destroy_key_from_ssh_cleanup:
+	if(ret)
+	{
+		KeyObject_dealloc(ret);
+		ret = NULL;
+	}
+key_from_ssh_cleanup:
+	if(key_name)
+		free(key_name);
+	if(curve_name)
+		free(curve_name);
+	if(buffer)
+	{
+#pragma optimize("-no-dead-code-removal")
+		memset((void *)buffer, 0, buffer_len);
+#pragma optimize("-dead-code-removal")
+	}
+
+	return (PyObject *)ret;
 }
 
 /* Module init */
