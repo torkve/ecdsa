@@ -1,6 +1,7 @@
 #include "misc.h"
 #include <Python.h>
 #include <openssl/ecdsa.h>
+#include <openssl/pem.h>
 
 #ifndef PyLong_FromLong
 #define PyLong_FromLong PyInt_FromLong
@@ -97,6 +98,53 @@ vpk_cleanup:
 	if (q)
 		EC_POINT_free(q);
 
+	return res;
+}
+
+int validate_private_key(const EC_KEY *key)
+{
+	BN_CTX *bnctx;
+	BIGNUM *order, *tmp;
+	int res = 0;
+
+	if ((bnctx = BN_CTX_new()) == NULL)
+	{
+		PyErr_SetString(PyExc_MemoryError, "Cannot create key buffer");
+		goto vprk_cleanup;
+	}
+
+	BN_CTX_start(bnctx);
+	if (
+		(order = BN_CTX_get(bnctx)) == NULL
+		|| (tmp = BN_CTX_get(bnctx)) == NULL
+	)
+	{
+		PyErr_SetString(PyExc_MemoryError, "Cannot create key buffer");
+		goto vprk_cleanup;
+	}
+
+	if (EC_GROUP_get_order(EC_KEY_get0_group(key), order, bnctx) != 1)
+	{
+		PyErr_SetString(PyExc_ValueError, "Invalid private key");
+		goto vprk_cleanup;
+	}
+
+	if (BN_num_bits(EC_KEY_get0_private_key(key)) <= BN_num_bits(order) / 2)
+	{
+		PyErr_SetString(PyExc_ValueError, "Private key too small");
+		goto vprk_cleanup;
+	}
+
+	if (!BN_sub(tmp, order, BN_value_one()) || BN_cmp(EC_KEY_get0_private_key(key), tmp) >= 0)
+	{
+		PyErr_SetString(PyExc_ValueError, "Point coordinates don't match the order");
+		goto vprk_cleanup;
+	}
+
+	res = 1;
+vprk_cleanup:
+	if (bnctx)
+		BN_CTX_free(bnctx);
 	return res;
 }
 
@@ -286,7 +334,7 @@ static void KeyObject_dealloc(KeyObject *self)
 
 static int KeyObject_init(KeyObject *self, PyObject *args, PyObject **kwargs)
 {
-	PyErr_SetString(PyExc_ArgumentError, "You mustn't instantiate Key object yourself");
+	PyErr_SetString(PyExc_TypeError, "You mustn't instantiate Key object yourself");
 	return -1; // One mustn't call 
 }
 
@@ -373,7 +421,65 @@ static PyObject* KeyObject_from_string(PyObject *c, PyObject *string)
 
 static PyObject* KeyObject_from_pem(PyObject *c, PyObject *string)
 {
-	return NULL;
+	BIO *bio = NULL;
+	EVP_PKEY *pk = NULL;
+	KeyObject *ret = NULL;
+
+	Py_ssize_t string_len = PyString_Size(string);
+
+	if (string_len <= 0)
+	{
+		PyErr_SetString(PyExc_ValueError, "Invalid string provided");
+		goto key_from_pem_cleanup;
+	}
+
+	if ((bio = BIO_new_mem_buf((void*)PyString_AsString(string), string_len)) == NULL)
+	{
+		PyErr_SetString(PyExc_MemoryError, "Can't create read buffer");
+		goto key_from_pem_cleanup;
+	}
+
+	/* TODO: support for passphrase */
+	/* pk = PEM_read_bio_PrivateKey(bio, NULL, NULL, (char *)passphrase); */
+	pk = PEM_read_bio_PrivateKey(bio, NULL, NULL, (char*)"");
+
+	if (pk == NULL)
+	{
+		PyErr_SetString(PyExc_ValueError, "Invalid key");
+		goto key_from_pem_cleanup;
+	}
+	if (pk->type != EVP_PKEY_EC)
+	{
+		PyErr_SetString(PyExc_ValueError, "Key type is not ECDSA");
+		goto key_from_pem_cleanup;
+	}
+
+	ret = (KeyObject *)PyObject_New(KeyObject, &key_Type);
+	if (ret == NULL)
+	{
+		PyErr_SetString(PyExc_MemoryError, "Can't create key object");
+		goto key_from_pem_cleanup;
+	}
+
+	ret->key = EVP_PKEY_get1_EC_KEY(pk);
+	if (
+		(ret->nid = nid_of_key(ret->key)) == 0
+		|| !curve_name_of_nid(ret->nid)
+		|| !validate_public_key(EC_KEY_get0_group(ret->key), EC_KEY_get0_public_key(ret->key))
+		|| !validate_private_key(ret->key)
+	)
+	{
+		PyErr_SetString(PyExc_ValueError, "Invalid key");
+		KeyObject_dealloc(ret);
+		ret = NULL;
+		goto key_from_pem_cleanup;
+	}
+key_from_pem_cleanup:
+	if (bio)
+		BIO_free(bio);
+	if (pk)
+		EVP_PKEY_free(pk);
+	return (PyObject *)ret;
 }
 
 static PyObject* KeyObject_from_ssh(PyObject *c, PyObject *string)

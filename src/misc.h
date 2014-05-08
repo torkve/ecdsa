@@ -26,7 +26,7 @@ static const keytype keytypes[] =
 };
 
 static inline const char *curve_name_of_nid(int nid)
- {
+{
 	const keytype *kt;
 	for (kt = keytypes; kt->name != NULL; ++kt)
 		if (kt->nid == nid)
@@ -79,6 +79,46 @@ static inline const char *nid_name_of_bits(int bits)
 	return NULL;
 }
 
+static inline int nid_of_key(EC_KEY *key)
+{
+	EC_GROUP *g;
+	BN_CTX *bnctx;
+	int nid = 0;
+	const keytype *kt;
+	const EC_GROUP *curve = EC_KEY_get0_group(key);
+
+	if ((nid = EC_GROUP_get_curve_name(curve)) > 0)
+		return nid;
+
+	if ((bnctx = BN_CTX_new()) == NULL)
+		return 0;
+
+	nid = 0;
+
+	for (kt = keytypes; kt->name != NULL; ++kt)
+	{
+		if ((g = EC_GROUP_new_by_curve_name(kt->nid)) == NULL)
+			goto nid_of_key_cleanup;
+		if (EC_GROUP_cmp(g, curve, bnctx) == 0)
+		{
+			EC_GROUP_set_asn1_flag(g, OPENSSL_EC_NAMED_CURVE);
+			if (EC_KEY_set_group(key, g) != 1)
+			{
+				EC_GROUP_free(g);
+				goto nid_of_key_cleanup;
+			}
+			nid = kt->nid;
+			goto nid_of_key_cleanup;
+		}
+		EC_GROUP_free(g);
+	}
+
+nid_of_key_cleanup:
+	if (bnctx)
+		BN_CTX_free(bnctx);
+	return nid;
+}
+
 static inline void write_u32(char **str, uint32_t i)
 {
 	(*str)[0] = (unsigned char)(i >> 24) & 0xff;
@@ -103,20 +143,20 @@ static inline uint32_t read_u32(char **s, size_t *s_len)
 	res |= (uint32_t)((*s)[2]) << 8;
 	res |= (uint32_t)((*s)[3]);
 	*s += 4;
-    *s_len -= 4;
+	*s_len -= 4;
 	return res;
 }
 
 static inline int read_str(char **src, size_t *src_len, char **str, size_t *len)
 {
 	*str = NULL;
-    if (*src_len <= 4)
-        return 0;
+	if (*src_len <= 4)
+		return 0;
 
 	*len = (size_t)read_u32(src, src_len);
 
-    if (*len > *src_len || *len == 0)
-        return 0;
+	if (*len > *src_len || *len == 0)
+		return 0;
 
 	if ((*str = (char *)malloc(*len + 1)) == NULL)
 		return 0;
@@ -124,7 +164,7 @@ static inline int read_str(char **src, size_t *src_len, char **str, size_t *len)
 	memcpy(*str, *src, *len);
 	(*str)[*len] = 0;
 	*src += *len;
-    *src_len -= *len;
+	*src_len -= *len;
 
 	return 1;
 }
@@ -189,3 +229,4 @@ static inline int decode_base64(const char *src, size_t src_len, char **dst, siz
 	return 1;
 }
 
+/* vim:set ts=8 sts=8 sw=8 noet: */
