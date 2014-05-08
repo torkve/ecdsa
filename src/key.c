@@ -286,7 +286,42 @@ fp_cleanup:
 
 static PyObject* KeyObject_to_pem(PyObject *s)
 {
-	return NULL;
+	BIO *bio = NULL;
+	KeyObject *self = (KeyObject *)s;
+	const BIGNUM *pk = EC_KEY_get0_private_key(self->key);
+	char *blob = NULL;
+	int blob_len = 0;
+	PyObject *ret = NULL;
+
+	if (!pk)
+	{
+		PyErr_SetString(PyExc_ValueError, "Key has no private exponent and cannot be serialized");
+		goto ktp_cleanup;
+	}
+
+	if ((bio = BIO_new(BIO_s_mem())) == NULL)
+	{
+		PyErr_SetString(PyExc_MemoryError, "Cannot create buffer");
+		goto ktp_cleanup;
+	}
+
+	/* TODO: support passphrase */
+	if (!PEM_write_bio_ECPrivateKey(bio, self->key, NULL, NULL, 0, NULL, NULL))
+	{
+		PyErr_SetString(PyExc_ValueError, "Cannot write key");
+		goto ktp_cleanup;
+	}
+
+	if ((blob_len = BIO_get_mem_data(bio, &blob)) <= 0)
+		goto ktp_cleanup;
+
+	ret = PyString_FromStringAndSize(blob, blob_len);
+
+ktp_cleanup:
+	if (bio)
+		BIO_free(bio);
+
+	return ret;
 }
 
 static PyObject* KeyObject_to_ssh(PyObject *s)
