@@ -181,7 +181,7 @@ static inline int read_str(char **src, size_t *src_len, char **str, size_t *len)
 
 static inline int read_point(char **str, size_t *str_len, const EC_GROUP *curve, EC_POINT *point)
 {
-	BN_CTX *bnctx;
+	BN_CTX *bnctx = NULL;
 	int res = 0;
 	char *buf;
 	size_t buf_len;
@@ -197,7 +197,7 @@ static inline int read_point(char **str, size_t *str_len, const EC_GROUP *curve,
 	if ((bnctx = BN_CTX_new()) == NULL)
 		goto rp_cleanup;
 
-	if (EC_POINT_oct2point(curve, point, buf, buf_len, bnctx) != 1)
+	if (EC_POINT_oct2point(curve, point, (unsigned char *)buf, buf_len, bnctx) != 1)
 		goto rp_cleanup;
 
 	res = 1;
@@ -223,7 +223,7 @@ static inline int decode_base64(const char *src, size_t src_len, char **dst, siz
 	if ((*dst = (char *)malloc(src_len + 1)) == NULL)
 		return 0;
 
-	if ((sz = b64_pton(src, *dst, src_len)) <= 0)
+	if ((sz = b64_pton(src, (unsigned char *)*dst, src_len)) <= 0)
 	{
 		explicit_bzero(*dst, src_len);
 		free(*dst);
@@ -244,7 +244,7 @@ static inline int encode_base64(const char *src, size_t src_len, char **dst, siz
 	if ((*dst = (char *)malloc(src_len * 2 + 1)) == NULL)
 		return 0;
 
-	if ((sz = b64_ntop(src, src_len, *dst, src_len * 2)) <= 0)
+	if ((sz = b64_ntop((unsigned char *)src, src_len, *dst, src_len * 2)) <= 0)
 	{
 		explicit_bzero(*dst, src_len * 2);
 		free(*dst);

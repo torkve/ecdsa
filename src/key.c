@@ -402,7 +402,7 @@ static void KeyObject_dealloc(KeyObject *self)
 static int KeyObject_init(KeyObject *self, PyObject *args, PyObject **kwargs)
 {
 	PyErr_SetString(PyExc_TypeError, "You mustn't instantiate Key object yourself");
-	return -1; // One mustn't call 
+	return -1; /* One mustn't call */
 }
 
 static PyObject* KeyObject_getattr(PyObject *s, char *name)
@@ -446,11 +446,11 @@ static PyObject* KeyObject_generate(PyObject *c, PyObject *args)
 	EC_KEY *private;
 	KeyObject *key;
 	int bits = 0;
+	int nid;
+
 	if (!PyArg_ParseTuple(args, "i", &bits))
-	{
 		return NULL;
-	}
-	int nid = nid_of_bits(bits);
+	nid = nid_of_bits(bits);
 	if (nid == -1)
 	{
 		PyErr_SetString(PyExc_ValueError, "Key size must be one of 256, 384 or 521");

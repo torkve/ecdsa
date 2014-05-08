@@ -16,6 +16,15 @@ include_directories(${OPENSSL_INCLUDE_DIR})
 include_directories(${PYTHON_INCLUDE_DIRS})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
 
+add_definitions(
+    -Wall
+    -pedantic
+    -Werror
+    -Wno-long-long
+    -Wno-unknown-pragmas
+    -fno-strict-aliasing  # when Python authors write a line of code, kitten dies
+    )
+
 file(GLOB SOURCES "src/*.[ch]")
 add_library(ecdsa SHARED ${SOURCES})
 set_target_properties(ecdsa PROPERTIES PREFIX "")
