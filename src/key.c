@@ -416,7 +416,20 @@ static PyObject* KeyObject_generate(PyObject *c, PyObject *args)
 
 static PyObject* KeyObject_from_string(PyObject *c, PyObject *string)
 {
-	return NULL;
+	PyObject *ret = NULL;
+
+	ret = KeyObject_from_pem(c, string);
+
+	PyErr_Clear();
+
+	if (!ret)
+		ret = KeyObject_from_ssh(c, string);
+
+	PyErr_Clear();
+
+	if (!ret)
+		PyErr_SetString(PyExc_ValueError, "Key not found in string");
+	return ret;
 }
 
 static PyObject* KeyObject_from_pem(PyObject *c, PyObject *string)
