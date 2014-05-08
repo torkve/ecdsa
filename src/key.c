@@ -336,6 +336,15 @@ static PyObject* KeyObject_verify(PyObject *s, PyObject *args)
 	return NULL;
 }
 
+static PyObject* KeyObject_has_private(PyObject *s)
+{
+	KeyObject *self = (KeyObject *)s;
+	const BIGNUM *pk = EC_KEY_get0_private_key(self->key);
+	if (pk)
+		Py_RETURN_TRUE;
+	Py_RETURN_FALSE;
+}
+
 static PyObject* KeyObject_from_string(PyObject *c, PyObject *string);
 static PyObject* KeyObject_from_pem(PyObject *c, PyObject *string);
 static PyObject* KeyObject_from_ssh(PyObject *c, PyObject *string);
@@ -353,6 +362,7 @@ static PyMethodDef KeyObject_methods[] =
 	{"to_ssh", (PyCFunction)KeyObject_to_ssh, METH_NOARGS, "Dump key as SSH pubkey string"},
 	{"sign", (PyCFunction)KeyObject_sign, METH_O, "Sign a piece of data"},
 	{"verify", (PyCFunction)KeyObject_verify, METH_VARARGS, "Verify a signature of data"},
+	{"has_private", (PyCFunction)KeyObject_has_private, METH_NOARGS, "Check if key has private component"},
 	{NULL, NULL, 0, NULL},
 };
 
