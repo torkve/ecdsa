@@ -291,7 +291,39 @@ static PyObject* KeyObject_to_pem(PyObject *s)
 
 static PyObject* KeyObject_to_ssh(PyObject *s)
 {
-	return NULL;
+	char *blob = NULL;
+	char *b64 = NULL;
+	size_t blob_len;
+	size_t b64_len;
+	PyObject *ret = NULL;
+	KeyObject *self = (KeyObject *)s;
+
+	if (!public_key_to_ssh(&blob, &blob_len, self->key, self->nid))
+		goto kts_cleanup;
+
+	if (!encode_base64(blob, blob_len, &b64, &b64_len))
+		goto kts_cleanup;
+
+	ret = PyString_FromStringAndSize(b64, b64_len);
+
+kts_cleanup:
+	if (blob)
+	{
+		/* Cleanup memory for security reasons */
+#pragma optimize("-no-dead-code-removal")
+		memset((void *)blob, 0, blob_len);
+#pragma optimize("-dead-code-removal")
+		free(blob);
+	}
+
+	if (b64)
+	{
+#pragma optimize("-no-dead-code-removal")
+		memset((void *)b64, 0, b64_len);
+#pragma optimize("-dead-code-removal")
+		free(b64);
+	}
+	return ret;
 }
 
 static PyObject* KeyObject_sign(PyObject *s, PyObject *data)

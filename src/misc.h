@@ -229,4 +229,27 @@ static inline int decode_base64(const char *src, size_t src_len, char **dst, siz
 	return 1;
 }
 
+static inline int encode_base64(const char *src, size_t src_len, char **dst, size_t *dst_len)
+{
+	int sz;
+	*dst = NULL;
+
+	/* Practically only 4/3 * src_len is needed, but let's alloc double size for simplicity */
+	if ((*dst = (char *)malloc(src_len * 2 + 1)) == NULL)
+		return 0;
+
+	if ((sz = b64_ntop(src, src_len, *dst, src_len * 2)) <= 0)
+	{
+#pragma optimize("-no-dead-code-removal")
+		memset((void *)*dst, 0, src_len * 2);
+#pragma optimize("-dead-code-removal")
+		free(*dst);
+		*dst = NULL;
+		return 0;
+	}
+	(*dst)[sz] = 0;
+	*dst_len = (size_t)sz;
+	return 1;
+
+}
 /* vim:set ts=8 sts=8 sw=8 noet: */
