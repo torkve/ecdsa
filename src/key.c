@@ -261,24 +261,18 @@ static PyObject* KeyObject_fingerprint(PyObject *s)
 	ret = PyString_FromStringAndSize(digest, digest_len);
 fp_cleanup:
 	EVP_MD_CTX_cleanup(&md5ctx);
-#pragma optimize("-no-dead-code-removal")
-	memset((void *)&md5ctx, 0, sizeof(md5ctx));
-#pragma optimize("-dead-code-removal")
+	explicit_bzero(&md5ctx, sizeof(md5ctx));
 
 	if (blob != NULL)
 	{
 		/* Cleanup memory for security reasons */
-#pragma optimize("-no-dead-code-removal")
-		memset((void *)blob, 0, blob_len);
-#pragma optimize("-dead-code-removal")
+		explicit_bzero(blob, blob_len);
 		free(blob);
 	}
 	if (digest != NULL)
 	{
 		/* Cleanup memory for security reasons */
-#pragma optimize("-no-dead-code-removal")
-		memset((void *)digest, 0, digest_len);
-#pragma optimize("-dead-code-removal")
+		explicit_bzero(digest, digest_len);
 		free(digest);
 	}
 	return ret;
@@ -345,17 +339,13 @@ kts_cleanup:
 	if (blob)
 	{
 		/* Cleanup memory for security reasons */
-#pragma optimize("-no-dead-code-removal")
-		memset((void *)blob, 0, blob_len);
-#pragma optimize("-dead-code-removal")
+		explicit_bzero(blob, blob_len);
 		free(blob);
 	}
 
 	if (b64)
 	{
-#pragma optimize("-no-dead-code-removal")
-		memset((void *)b64, 0, b64_len);
-#pragma optimize("-dead-code-removal")
+		explicit_bzero(b64, b64_len);
 		free(b64);
 	}
 	return ret;
@@ -672,9 +662,8 @@ key_from_ssh_cleanup:
 		free(curve_name);
 	if(buffer)
 	{
-#pragma optimize("-no-dead-code-removal")
-		memset((void *)buffer, 0, buffer_len);
-#pragma optimize("-dead-code-removal")
+		explicit_bzero(buffer, buffer_len);
+		free(buffer);
 	}
 
 	return (PyObject *)ret;

@@ -25,6 +25,16 @@ static const keytype keytypes[] =
 	{NULL},
 };
 
+static inline void explicit_bzero(void *mem, size_t mem_len)
+{
+#pragma optimize("-no-dead-code-removal")
+#pragma optimize("-no-dce")
+	volatile void *vmem = (volatile void *)mem;
+	memset((void *)vmem, 0, mem_len);
+#pragma optimize("-dead-code-removal")
+#pragma optimize("-dce")
+}
+
 static inline const char *curve_name_of_nid(int nid)
 {
 	const keytype *kt;
@@ -194,9 +204,7 @@ static inline int read_point(char **str, size_t *str_len, const EC_GROUP *curve,
 rp_cleanup:
 	if (buf)
 	{
-#pragma optimize("-no-dead-code-removal")
-		memset((void *)buf, 0, buf_len);
-#pragma optimize("-dead-code-removal")
+		explicit_bzero(buf, buf_len);
 		free(buf);
 
 	}
@@ -217,9 +225,7 @@ static inline int decode_base64(const char *src, size_t src_len, char **dst, siz
 
 	if ((sz = b64_pton(src, *dst, src_len)) <= 0)
 	{
-#pragma optimize("-no-dead-code-removal")
-		memset((void *)*dst, 0, src_len);
-#pragma optimize("-dead-code-removal")
+		explicit_bzero(*dst, src_len);
 		free(*dst);
 		*dst = NULL;
 		return 0;
@@ -240,9 +246,7 @@ static inline int encode_base64(const char *src, size_t src_len, char **dst, siz
 
 	if ((sz = b64_ntop(src, src_len, *dst, src_len * 2)) <= 0)
 	{
-#pragma optimize("-no-dead-code-removal")
-		memset((void *)*dst, 0, src_len * 2);
-#pragma optimize("-dead-code-removal")
+		explicit_bzero(*dst, src_len * 2);
 		free(*dst);
 		*dst = NULL;
 		return 0;
