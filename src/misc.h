@@ -7,6 +7,20 @@
 #include <openssl/ec.h>
 #include <openssl/bn.h>
 
+#ifdef DEBUG_ECDSA
+#include <stdio.h>
+#define debug(format, ...) fprintf(stderr, "%s: " format "\n", __func__, ##__VA_ARGS__)
+#define debugs(format) fprintf(stderr, "%s: " format "\n", __func__)
+#define debug_bn(name, bn) \
+	fprintf(stderr, "%s: BN %s=", __func__, #name); \
+	BN_print_fp(stderr, bn); \
+	fprintf(stderr, "\n");
+#else
+#define debug(...)
+#define debugs(...)
+#define debug_bn(...)
+#endif
+
 /* Helper functions */
 
 typedef struct
@@ -135,6 +149,7 @@ static inline void write_u32(char **str, uint32_t i)
 	(*str)[1] = (unsigned char)(i >> 16) & 0xff;
 	(*str)[2] = (unsigned char)(i >> 8) & 0xff;
 	(*str)[3] = (unsigned char)i & 0xff;
+	debug("wrote u32 to %lx: %u", (size_t)*str, i);
 	*str += 4;
 }
 
@@ -142,6 +157,7 @@ static inline void write_str(char **str, const char *v, uint32_t len)
 {
 	write_u32(str, len);
 	memcpy(*str, v, len);
+	debug("wrote str to %lx (%u): `%s`", (size_t)*str, len, *str);
 	*str += len;
 }
 
@@ -152,6 +168,7 @@ static inline uint32_t read_u32(char **s, size_t *s_len)
 	res |= (uint32_t)((*s)[1]) << 16;
 	res |= (uint32_t)((*s)[2]) << 8;
 	res |= (uint32_t)((*s)[3]);
+	debug("read u32 from %lx: %u", (size_t)*s, res);
 	*s += 4;
 	*s_len -= 4;
 	return res;
@@ -173,6 +190,7 @@ static inline int read_str(char **src, size_t *src_len, char **str, size_t *len)
 
 	memcpy(*str, *src, *len);
 	(*str)[*len] = 0;
+	debug("read str from %lx (%lu): `%s`", (size_t)*str, *len, *str);
 	*src += *len;
 	*src_len -= *len;
 

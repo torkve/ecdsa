@@ -22,8 +22,15 @@ add_definitions(
     -Werror
     -Wno-long-long
     -Wno-unknown-pragmas
+    -std=gnu99
     -fno-strict-aliasing  # when Python authors write a line of code, kitten dies
     )
+
+option(DEBUG_ECDSA "Display debug messages on stderr" FALSE)
+
+if (DEBUG_ECDSA)
+    add_definitions(-DDEBUG_ECDSA)
+endif()
 
 file(GLOB SOURCES "src/*.[ch]")
 add_library(ecdsa SHARED ${SOURCES})
