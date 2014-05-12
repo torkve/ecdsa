@@ -212,9 +212,11 @@ static PyObject* KeyObject_nid_name(PyObject *s)
 	KeyObject *self = (KeyObject *)s;
 	const char *name = nid_name_of_nid(self->nid);
 	if (!name)
-		return NULL;
+		Py_RETURN_NONE;
 	return (PyObject*)PyString_FromString(name);
 }
+
+static const char nid_name_doc[] = "Key.nid_name(): get the curve name.\n:return: string name or None";
 
 static PyObject* KeyObject_fingerprint(PyObject *s)
 {
@@ -278,6 +280,8 @@ fp_cleanup:
 	return ret;
 }
 
+static const char fingerprint_doc[] = "Key.fingerprint(): get the key MD5 fingerprint.\n:return: string 16 bytes with raw MD5 key hash";
+
 static PyObject* KeyObject_to_pem(PyObject *s)
 {
 	BIO *bio = NULL;
@@ -318,6 +322,8 @@ ktp_cleanup:
 	return ret;
 }
 
+static const char to_pem_doc[] = "Key.to_pem(): get the key PEM-encoded.\nEncodes private key into PEM container. Neither passwords nor public key encoding is currently suppoered.\n:return: string PEM-encoded key";
+
 static PyObject* KeyObject_to_ssh(PyObject *s)
 {
 	char *blob = NULL;
@@ -350,6 +356,8 @@ kts_cleanup:
 	}
 	return ret;
 }
+
+static const char to_ssh_doc[] = "Key.to_ssh(): get the key in SSH authorized_keys compatible format.\nEncodes only public key and neither key type prefix nor comment string are added.\n:return: string SSH-encoded key";
 
 static PyObject* KeyObject_sign(PyObject *s, PyObject *data)
 {
@@ -441,6 +449,8 @@ sign_cleanup:
 	}
 	return ret;
 }
+
+static const char sign_doc[] = "Key.sign(data): sign the piece of data.\nThe key must have private component to sign the data.\nNote that to sign data for SSH or any similar systems you must provide corresponding data digest instead of raw data.\n:param string data: data or digest to sign\n:return: string signature";
 
 static PyObject* KeyObject_verify(PyObject *s, PyObject *args)
 {
@@ -559,6 +569,8 @@ verify_cleanup:
 	return ret;
 }
 
+static const char verify_doc[] = "Key.verify(data, signature): verify the signature of data.\nNote that to verify data encoded by SSH or any similar systems you must provide data digest instead of raw data.\n:param string data: data or digest to verify\n:param string signature: signature of the data given\n:return: boolean if the signature is valid";
+
 static PyObject* KeyObject_has_private(PyObject *s)
 {
 	KeyObject *self = (KeyObject *)s;
@@ -568,24 +580,30 @@ static PyObject* KeyObject_has_private(PyObject *s)
 	Py_RETURN_FALSE;
 }
 
+static const char has_private_doc[] = "Key.has_private(): check if the key has private component required to sign the data.\n:return: boolean check result";
+
 static PyObject* KeyObject_from_string(PyObject *c, PyObject *string);
+static const char from_string_doc[] = "Key.from_string(str): read the key from str, deducing the encoding type.\nCurrently PEM encoding and SSH-encoding without prefixes/suffixes are supported.\n:raise ValueError: in case of key cannot be parsed\n:return: Key object";
 static PyObject* KeyObject_from_pem(PyObject *c, PyObject *string);
+static const char from_pem_doc[] = "Key.from_pem(s): read the PEM-encoded key from s.\n:param string s: PEM-encoded key\n:raise ValueError: in case of key cannot be parsed\n:return: Key object";
 static PyObject* KeyObject_from_ssh(PyObject *c, PyObject *string);
+static const char from_ssh_doc[] = "Key.from_ssh(s): read the SSH-encoded key from s.\n:param string s: SSH-encoded key\n:raise ValueError: in case of key cannot be parsed\n:return: Key object";
 static PyObject* KeyObject_generate(PyObject *c, PyObject *args);
+static const char generate_doc[] = "Key.generate(bits): generate new ECDSA private key using bits length curve.\n:param int bits: bits number, only 256, 384 and 521 are supported\n:raise ValueError: if key cannot be generated for some reasons\n:return: Key object";
 
 static PyMethodDef KeyObject_methods[] =
 {
-	{"nid_name", (PyCFunction)KeyObject_nid_name, METH_NOARGS, "Get the curve NID name"},
-	{"fingerprint", (PyCFunction)KeyObject_fingerprint, METH_NOARGS, "Get the key MD5 fingerprint"},
-	{"from_string", (PyCFunction)KeyObject_from_string, METH_CLASS|METH_O, "Create the key from the string, deducing the encoding type"},
-	{"from_pem", (PyCFunction)KeyObject_from_pem, METH_CLASS|METH_O, "Create the key from the PEM encoding (DER + base64)"},
-	{"from_ssh", (PyCFunction)KeyObject_from_ssh, METH_CLASS|METH_O, "Create the key from the SSH pubkey format"},
-	{"generate", (PyCFunction)KeyObject_generate, METH_CLASS|METH_VARARGS, "Generate new private key"},
-	{"to_pem", (PyCFunction)KeyObject_to_pem, METH_NOARGS, "Dump key as PEM string"},
-	{"to_ssh", (PyCFunction)KeyObject_to_ssh, METH_NOARGS, "Dump key as SSH pubkey string"},
-	{"sign", (PyCFunction)KeyObject_sign, METH_O, "Sign a piece of data"},
-	{"verify", (PyCFunction)KeyObject_verify, METH_VARARGS, "Verify a signature of data"},
-	{"has_private", (PyCFunction)KeyObject_has_private, METH_NOARGS, "Check if key has private component"},
+	{"nid_name", (PyCFunction)KeyObject_nid_name, METH_NOARGS, nid_name_doc},
+	{"fingerprint", (PyCFunction)KeyObject_fingerprint, METH_NOARGS, fingerprint_doc},
+	{"from_string", (PyCFunction)KeyObject_from_string, METH_CLASS|METH_O, from_string_doc},
+	{"from_pem", (PyCFunction)KeyObject_from_pem, METH_CLASS|METH_O, from_pem_doc},
+	{"from_ssh", (PyCFunction)KeyObject_from_ssh, METH_CLASS|METH_O, from_ssh_doc},
+	{"generate", (PyCFunction)KeyObject_generate, METH_CLASS|METH_VARARGS, generate_doc},
+	{"to_pem", (PyCFunction)KeyObject_to_pem, METH_NOARGS, to_pem_doc},
+	{"to_ssh", (PyCFunction)KeyObject_to_ssh, METH_NOARGS, to_ssh_doc},
+	{"sign", (PyCFunction)KeyObject_sign, METH_O, sign_doc},
+	{"verify", (PyCFunction)KeyObject_verify, METH_VARARGS, verify_doc},
+	{"has_private", (PyCFunction)KeyObject_has_private, METH_NOARGS, has_private_doc},
 	{NULL, NULL, 0, NULL},
 };
 
