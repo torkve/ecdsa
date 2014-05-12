@@ -161,6 +161,87 @@ static inline void write_str(char **str, const char *v, uint32_t len)
 	*str += len;
 }
 
+static inline int str_of_bn(BIGNUM *bn, char **dst, size_t *dst_len)
+{
+	int wtn = 0;
+	char *ptr = NULL, *ptr2 = NULL;
+	size_t len = 0;
+	*dst = NULL;
+
+	if (BN_is_zero(bn))
+	{
+		debugs("BN is zero");
+		*dst = (char *)malloc(4);
+		if (!*dst)
+			return 0;
+		ptr = *dst;
+		write_u32(&ptr, 0u);
+		*dst_len = 4;
+		return 1;
+	}
+	debugs("BN is not zero");
+
+	if (bn->neg)
+	{
+		debugs("BN is negative, not supported");
+		return 0;
+	}
+
+	len = 4 + BN_num_bytes(bn) + 1;
+	debug("expected BN size is %lu", len);
+	if (len < 6)
+		return 0;
+
+	*dst = (char *)malloc(len);
+	if (!*dst)
+	{
+		debugs("couldn't allocate memory for BN");
+		return 0;
+	}
+
+	ptr = *dst;
+	write_u32(&ptr, len - 4);
+
+	ptr[0] = 0;
+
+	wtn = BN_bn2bin(bn, (unsigned char *)ptr + 1);
+	debug("wrote BN to %lx (%d): `%s`", (size_t)(ptr + 1), wtn, (char *)(ptr + 1));
+	if (wtn <= 0 || (size_t)wtn != len - 5)
+	{
+		debug("write BN failed, written %d instead of %lu", wtn, len - 5);
+		free(*dst);
+		*dst = NULL;
+		return 0;
+	}
+
+	if ((unsigned char)(ptr[1]) & 0x80)
+	{
+		debug("first byte is %u, returning as is", (unsigned char)ptr[1]);
+		*dst_len = len;
+		return 1;
+	}
+
+	debug("first byte is %u, stripping zero byte", (unsigned char)ptr[1]);
+	ptr = (char *)malloc(len - 1);
+	if (!ptr)
+	{
+		debugs("allocation for BN substring failed");
+		explicit_bzero(*dst, len);
+		free(*dst);
+		*dst = NULL;
+		return 0;
+	}
+	ptr2 = ptr;
+	write_u32(&ptr2, len - 5);
+	memcpy(ptr2, *dst + 5, len - 5);
+	debug("moved BN[1:] (%lu): `%s`", len - 5, ptr2);
+	explicit_bzero(*dst, len);
+	free(*dst);
+	*dst = ptr;
+	*dst_len = len - 1;
+	return 1;
+}
+
 static inline uint32_t read_u32(char **s, size_t *s_len)
 {
 	uint32_t res;
@@ -230,6 +311,36 @@ rp_cleanup:
 		BN_CTX_free(bnctx);
 
 	return res;
+}
+
+static inline int read_bn(char **str, size_t *str_len, BIGNUM *bn)
+{
+	uint32_t len = 0;
+	if (*str_len < 4)
+		return 0;
+
+	len = read_u32(str, str_len);
+	if (len > 0 && ((*str)[0] & 0x80))
+	{
+		debug("first character is unexpectedly %u, fail", (*str)[0]);
+		return 0;
+	}
+
+	if (len > *str_len)
+	{
+		debug("%lu bytes left in string, at least %u expected", *str_len, len);
+		return 0;
+	}
+	if (BN_bin2bn((unsigned char *)*str, len, bn) == NULL)
+	{
+		debug("failed to read BN (%lu)", *str_len);
+		return 0;
+	}
+
+	*str += len;
+	*str_len -= len;
+
+	return 1;
 }
 
 static inline int decode_base64(const char *src, size_t src_len, char **dst, size_t *dst_len)

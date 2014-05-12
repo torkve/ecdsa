@@ -353,12 +353,210 @@ kts_cleanup:
 
 static PyObject* KeyObject_sign(PyObject *s, PyObject *data)
 {
-	return NULL;
+	KeyObject *self = (KeyObject *)s;
+	Py_ssize_t data_len = PyString_Size(data);
+	const BIGNUM *pk = EC_KEY_get0_private_key(self->key);
+	ECDSA_SIG *sig = NULL;
+	PyObject *ret = NULL;
+	size_t ret_len = 0;
+	char *ret_str = NULL, *tmp = NULL, *tmp2 = NULL, *tmp3 = NULL;
+	size_t tmp_len = 0, tmp2_len = 0;
+	const char *nid_name = nid_name_of_nid(self->nid);
+
+	if (!pk)
+	{
+		PyErr_SetString(PyExc_ValueError, "Key has no private exponent and cannot sign");
+		goto sign_cleanup;
+	}
+
+	if (data_len <= 0)
+	{
+		PyErr_SetString(PyExc_ValueError, "Invalid string provided");
+		goto sign_cleanup;
+	}
+
+	sig = ECDSA_do_sign((unsigned char *)PyString_AsString(data), data_len, self->key);
+
+	if (!sig)
+	{
+		PyErr_SetString(PyExc_ValueError, "Failed making signature");
+		goto sign_cleanup;
+	}
+
+	debugs("dumping r");
+	debug_bn(r, sig->r);
+	if(!str_of_bn(sig->r, &tmp, &tmp_len))
+	{
+		PyErr_SetString(PyExc_ValueError, "Failed making signature");
+		goto sign_cleanup;
+	}
+	debugs("dumping s");
+	debug_bn(s, sig->s);
+	if (!str_of_bn(sig->s, &tmp2, &tmp2_len))
+	{
+		PyErr_SetString(PyExc_ValueError, "Failed making signature");
+		goto sign_cleanup;
+	}
+
+	ret_len = 4 + strlen(nid_name) + 4 + tmp_len + tmp2_len;
+	ret_str = (char *)malloc(ret_len);
+	if (!ret_str)
+	{
+		PyErr_SetString(PyExc_MemoryError, "Cannot create string for signature");
+		goto sign_cleanup;
+	}
+
+	debugs("dumping signature");
+	tmp3 = ret_str;
+	write_str(&tmp3, nid_name, strlen(nid_name));
+	debug("wrote nid_name (%lu): `%s`", strlen(nid_name), nid_name);
+	write_u32(&tmp3, tmp_len + tmp2_len);
+	debug("wrote blob_len (%lu)", tmp_len + tmp2_len);
+	memcpy(tmp3, tmp, tmp_len);
+	debug("wrote r (%lu): `%s`", tmp_len, tmp);
+	tmp3 += tmp_len;
+	memcpy(tmp3, tmp2, tmp2_len);
+	debug("wrote s (%lu): `%s`", tmp2_len, tmp2);
+	debug("finished whole signature (%lu)", ret_len);
+
+	ret = PyBytes_FromStringAndSize(ret_str, ret_len);
+
+sign_cleanup:
+	if (sig)
+		ECDSA_SIG_free(sig);
+	if (tmp)
+	{
+		explicit_bzero(tmp, tmp_len);
+		free(tmp);
+	}
+	if (tmp2)
+	{
+		explicit_bzero(tmp2, tmp2_len);
+		free(tmp2);
+	}
+	if (ret_str)
+	{
+		explicit_bzero(ret_str, ret_len);
+		free(ret_str);
+	}
+	return ret;
 }
 
 static PyObject* KeyObject_verify(PyObject *s, PyObject *args)
 {
-	return NULL;
+	PyObject *data = NULL, *sig = NULL, *ret = NULL;
+	size_t data_len = 0, sig_len = 0;
+
+	KeyObject *self = (KeyObject *)s;
+
+	char *tmp = NULL;
+
+	char *curve_name = NULL, *blob = NULL;
+	size_t curve_name_len = 0, blob_len = 0;
+
+	ECDSA_SIG *signature = NULL;
+
+	if (!PyArg_ParseTuple(args, "SS", &data, &sig))
+		return NULL;
+
+	sig_len = (size_t)PyString_Size(sig);
+	data_len = (size_t)PyString_Size(data);
+	tmp = PyString_AsString(sig);
+
+	if (!sig_len || !data_len)
+	{
+		debug("Length check failed: %lu and %lu", sig_len, data_len);
+		goto verify_fail;
+	}
+
+	debugs("reading signature");
+
+	if (!read_str(&tmp, &sig_len, &curve_name, &curve_name_len))
+	{
+		debugs("can't read curve name from sign");
+		goto verify_fail;
+	}
+	debug("read curve_name (%lu): `%s`", curve_name_len, curve_name);
+
+	if (strcmp(curve_name, nid_name_of_nid(self->nid)) != 0)
+	{
+		debugs("curve name don't match sign name");
+		goto verify_fail;
+	}
+
+	if (!read_str(&tmp, &sig_len, &blob, &blob_len))
+	{
+		debugs("can't read blob from sign");
+		goto verify_fail;
+	}
+
+	debug("read blob (%lu): `%s`", blob_len, blob);
+
+	if (sig_len)
+	{
+		debug("trailing characters at the end of signature (%lu)", sig_len);
+		goto verify_fail;
+	}
+
+	if ((signature = ECDSA_SIG_new()) == NULL)
+	{
+		PyErr_SetString(PyExc_MemoryError, "Cannot allocate memory for signature");
+		goto verify_cleanup;
+	}
+
+	tmp = blob;
+	sig_len = blob_len;
+
+	debugs("verifying signature!");
+
+	if (!read_bn(&tmp, &sig_len, signature->r))
+	{
+		debugs("couldn't read r");
+		goto verify_fail;
+	}
+	debug_bn(r, signature->r);
+	if (!read_bn(&tmp, &sig_len, signature->s))
+	{
+		debugs("couldn't read s");
+		goto verify_fail;
+	}
+	debug_bn(s, signature->s);
+	if (sig_len)
+	{
+		debug("trailing characters on the end of the blob (%lu)", sig_len);
+		goto verify_fail;
+	}
+
+	if (ECDSA_do_verify((unsigned char *)PyString_AsString(data), data_len, signature, self->key) != 1)
+	{
+		debugs("verify failed(");
+		goto verify_fail;
+	}
+
+	ret = Py_True;
+	Py_INCREF(ret);
+	goto verify_cleanup;
+
+verify_fail:
+	ret = Py_False;
+	Py_INCREF(ret);
+
+verify_cleanup:
+	if (curve_name)
+	{
+		explicit_bzero(curve_name, curve_name_len);
+		free(curve_name);
+	}
+
+	if (blob)
+	{
+		explicit_bzero(blob, curve_name_len);
+		free(blob);
+	}
+
+	if (signature)
+		ECDSA_SIG_free(signature);
+	return ret;
 }
 
 static PyObject* KeyObject_has_private(PyObject *s)
