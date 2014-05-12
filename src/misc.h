@@ -1,5 +1,8 @@
 #pragma once
 
+#ifdef __FreeBSD__
+#include <netinet/in.h>
+#endif
 #include <resolv.h>
 #include <stdlib.h>
 #include <string.h>

@@ -32,8 +32,12 @@ if (DEBUG_ECDSA)
     add_definitions(-DDEBUG_ECDSA)
 endif()
 
+if (${CMAKE_SYSTEM_NAME} MATCHES Linux)
+    set (RESOLVLIB resolv)
+endif()
+
 file(GLOB SOURCES "src/*.[ch]")
 add_library(ecdsa SHARED ${SOURCES})
 set_target_properties(ecdsa PROPERTIES PREFIX "")
-target_link_libraries(ecdsa resolv ${PYTHON_LIBRARIES} ${OPENSSL_LIBRARIES})
+target_link_libraries(ecdsa ${RESOLVLIB} ${PYTHON_LIBRARIES} ${OPENSSL_LIBRARIES})
 
