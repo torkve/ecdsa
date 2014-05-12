@@ -245,10 +245,11 @@ static inline int str_of_bn(BIGNUM *bn, char **dst, size_t *dst_len)
 static inline uint32_t read_u32(char **s, size_t *s_len)
 {
 	uint32_t res;
-	res = (uint32_t)((*s)[0]) << 24;
-	res |= (uint32_t)((*s)[1]) << 16;
-	res |= (uint32_t)((*s)[2]) << 8;
-	res |= (uint32_t)((*s)[3]);
+	unsigned char *ptr = (unsigned char *)*s;
+	res = (uint32_t)(ptr[0]) << 24;
+	res |= (uint32_t)(ptr[1]) << 16;
+	res |= (uint32_t)(ptr[2]) << 8;
+	res |= (uint32_t)(ptr[3]);
 	debug("read u32 from %lx: %u", (size_t)*s, res);
 	*s += 4;
 	*s_len -= 4;
