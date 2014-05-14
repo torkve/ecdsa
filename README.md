@@ -97,4 +97,22 @@ open('/home/user/.ssh/id_ecdsa.pub', 'wb').write(
     "{keyType} {key} {comment}".format(keyType=key.nid_name(), key=key.to_ssh(), comment="uzba@go.is")
 )
 
+
+# sign and verify data for ssh
+import hashlib
+
+def hash_for_key(key):
+    bits = key.bits()
+    if bits == 256:
+        return hashlib.sha256
+    elif bits == 384:
+        return hashlib.sha384
+    else:
+        return hashlib.sha512
+
+data = 'some data to sign'
+digest = hash_for_key(key)(data).digest()
+signature = key.sign(digest)
+assert key.verify(digest, signature)  # Note, SSH always operates with digests!
+
 ```
