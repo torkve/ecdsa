@@ -667,7 +667,7 @@ static PyObject* KeyObject_generate(PyObject *c, PyObject *args)
 	if (!PyArg_ParseTuple(args, "i", &bits))
 		return NULL;
 	nid = nid_of_bits(bits);
-	if (nid == -1)
+	if (!nid)
 	{
 		PyErr_SetString(PyExc_ValueError, "Key size must be one of 256, 384 or 521");
 		return NULL;
@@ -780,7 +780,7 @@ key_from_pem_cleanup:
 
 static PyObject* KeyObject_from_ssh(PyObject *c, PyObject *string)
 {
-	EC_POINT *point;
+	EC_POINT *point = NULL;
 
 	char *buffer = NULL, *buffer_in;
 	size_t buffer_len = 0, buffer_in_len = 0;
@@ -876,6 +876,8 @@ key_from_ssh_cleanup:
 		free(key_name);
 	if(curve_name)
 		free(curve_name);
+	if (point)
+		EC_POINT_free(point);
 	if(buffer)
 	{
 		explicit_bzero(buffer, buffer_len);
