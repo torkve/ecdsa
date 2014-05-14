@@ -8,8 +8,8 @@ Its main purpose is to provide an interface suitable to the key operations used
 in OpenSSH. It means key save/load and data sign/verify.
 
 
-Compilation
-===========
+Build
+=====
 
 The only requirements are CMake as build system, OpenSSL and Python.
 
@@ -27,7 +27,7 @@ All the paths are detected automatically by default, but you can specify:
 
     ```sh
     cmake \ 
-        -DOPENSSL_CRYPYO_LIBRARY=/home/openssl/lib/libcrypto.so \
+        -DOPENSSL_CRYPTO_LIBRARY=/home/openssl/lib/libcrypto.so \
         -DOPENSSL_INCLUDE_DIR=/home/openssl/include \
         -DOPENSSL_SSL_LIBRARY=/home/openssl/lib/libssl.so  
         ..
@@ -42,7 +42,7 @@ All the paths are detected automatically by default, but you can specify:
         -DPYTHON_LIBRARY=/home/python/lib/libpython2.7.so \
         ..
     ```
-    
+
 3. Python site-packages directory where to install (taken from python itself by default):
 
     ```sh
@@ -54,7 +54,7 @@ All the paths are detected automatically by default, but you can specify:
     ```sh
     make DESTDIR=../debian/tmp install
     ```
-  
+
 All the options can be used in any combinations.
 
 
