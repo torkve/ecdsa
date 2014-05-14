@@ -97,6 +97,13 @@ static inline int nid_of_bits(int bits)
 	return 0;
 }
 
+static inline int bits_of_nid(int nid)
+{
+	const keytype *kt;
+	for (kt = keytypes; kt->name != NULL; ++kt)
+		if (kt->nid == nid)
+			return kt->bits;
+	return 0;
 }
 
 static inline const char *nid_name_of_bits(int bits)

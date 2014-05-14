@@ -66,6 +66,7 @@ class TestKey(TestCase):
         for bits in (256, 384, 521):
             key = Key.generate(bits)
             self.assertTrue(key.has_private())
+            self.assertEquals(key.bits(), bits)
 
     def test_sign(self):
         data = 'kekeke'

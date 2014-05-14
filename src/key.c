@@ -207,6 +207,15 @@ pks_cleanup:
 
 /* Object methods */
 
+static PyObject* KeyObject_bits(PyObject *s)
+{
+	KeyObject *self = (KeyObject *)s;
+	int bits = bits_of_nid(self->nid);
+	return PyInt_FromLong(bits);
+}
+
+static const char bits_doc[] = "k.bits(): get the bit size of the key.\n:return: int bits";
+
 static PyObject* KeyObject_nid_name(PyObject *s)
 {
 	KeyObject *self = (KeyObject *)s;
@@ -594,6 +603,7 @@ static const char generate_doc[] = "Key.generate(bits): generate new ECDSA priva
 static PyMethodDef KeyObject_methods[] =
 {
 	{"nid_name", (PyCFunction)KeyObject_nid_name, METH_NOARGS, nid_name_doc},
+	{"bits", (PyCFunction)KeyObject_bits, METH_NOARGS, bits_doc},
 	{"fingerprint", (PyCFunction)KeyObject_fingerprint, METH_NOARGS, fingerprint_doc},
 	{"from_string", (PyCFunction)KeyObject_from_string, METH_CLASS|METH_O, from_string_doc},
 	{"from_pem", (PyCFunction)KeyObject_from_pem, METH_CLASS|METH_O, from_pem_doc},
