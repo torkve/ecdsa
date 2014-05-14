@@ -216,7 +216,7 @@ static PyObject* KeyObject_nid_name(PyObject *s)
 	return (PyObject*)PyString_FromString(name);
 }
 
-static const char nid_name_doc[] = "Key.nid_name(): get the curve name.\n:return: string name or None";
+static const char nid_name_doc[] = "k.nid_name(): get the curve name.\n:return: string name or None";
 
 static PyObject* KeyObject_fingerprint(PyObject *s)
 {
@@ -280,7 +280,7 @@ fp_cleanup:
 	return ret;
 }
 
-static const char fingerprint_doc[] = "Key.fingerprint(): get the key MD5 fingerprint.\n:return: string 16 bytes with raw MD5 key hash";
+static const char fingerprint_doc[] = "k.fingerprint(): get the key MD5 fingerprint.\n:return: string 16 bytes with raw MD5 key hash";
 
 static PyObject* KeyObject_to_pem(PyObject *s)
 {
@@ -322,7 +322,7 @@ ktp_cleanup:
 	return ret;
 }
 
-static const char to_pem_doc[] = "Key.to_pem(): get the key PEM-encoded.\nEncodes private key into PEM container. Neither passwords nor public key encoding is currently suppoered.\n:return: string PEM-encoded key";
+static const char to_pem_doc[] = "k.to_pem(): get the key PEM-encoded.\nEncodes private key into PEM container. Neither passwords nor public key encoding is currently suppoered.\n:return: string PEM-encoded key";
 
 static PyObject* KeyObject_to_ssh(PyObject *s)
 {
@@ -357,7 +357,7 @@ kts_cleanup:
 	return ret;
 }
 
-static const char to_ssh_doc[] = "Key.to_ssh(): get the key in SSH authorized_keys compatible format.\nEncodes only public key and neither key type prefix nor comment string are added.\n:return: string SSH-encoded key";
+static const char to_ssh_doc[] = "k.to_ssh(): get the key in SSH authorized_keys compatible format.\nEncodes only public key and neither key type prefix nor comment string are added.\n:return: string SSH-encoded key";
 
 static PyObject* KeyObject_sign(PyObject *s, PyObject *data)
 {
@@ -450,7 +450,7 @@ sign_cleanup:
 	return ret;
 }
 
-static const char sign_doc[] = "Key.sign(data): sign the piece of data.\nThe key must have private component to sign the data.\nNote that to sign data for SSH or any similar systems you must provide corresponding data digest instead of raw data.\n:param string data: data or digest to sign\n:return: string signature";
+static const char sign_doc[] = "k.sign(data): sign the piece of data.\nThe key must have private component to sign the data.\nNote that to sign data for SSH or any similar systems you must provide corresponding data digest instead of raw data.\n:param string data: data or digest to sign\n:return: string signature";
 
 static PyObject* KeyObject_verify(PyObject *s, PyObject *args)
 {
@@ -569,7 +569,7 @@ verify_cleanup:
 	return ret;
 }
 
-static const char verify_doc[] = "Key.verify(data, signature): verify the signature of data.\nNote that to verify data encoded by SSH or any similar systems you must provide data digest instead of raw data.\n:param string data: data or digest to verify\n:param string signature: signature of the data given\n:return: boolean if the signature is valid";
+static const char verify_doc[] = "k.verify(data, signature): verify the signature of data.\nNote that to verify data encoded by SSH or any similar systems you must provide data digest instead of raw data.\n:param string data: data or digest to verify\n:param string signature: signature of the data given\n:return: boolean if the signature is valid";
 
 static PyObject* KeyObject_has_private(PyObject *s)
 {
@@ -580,7 +580,7 @@ static PyObject* KeyObject_has_private(PyObject *s)
 	Py_RETURN_FALSE;
 }
 
-static const char has_private_doc[] = "Key.has_private(): check if the key has private component required to sign the data.\n:return: boolean check result";
+static const char has_private_doc[] = "k.has_private(): check if the key has private component required to sign the data.\n:return: boolean check result";
 
 static PyObject* KeyObject_from_string(PyObject *c, PyObject *string);
 static const char from_string_doc[] = "Key.from_string(str): read the key from str, deducing the encoding type.\nCurrently PEM encoding and SSH-encoding without prefixes/suffixes are supported.\n:raise ValueError: in case of key cannot be parsed\n:return: Key object";
