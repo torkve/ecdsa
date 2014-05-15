@@ -32,8 +32,8 @@
  *
  */
 
-#include "misc.h"
 #include <Python.h>
+#include "misc.h"
 #include <openssl/ecdsa.h>
 #include <openssl/pem.h>
 
