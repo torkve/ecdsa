@@ -265,7 +265,7 @@ static PyObject* KeyObject_fingerprint(PyObject *s)
 {
 	KeyObject *self = (KeyObject *)s;
 	EVP_MD_CTX md5ctx;
-	char *blob = NULL, *digest;
+	char *blob = NULL, *digest = NULL;
 	size_t blob_len;
 	size_t digest_len = MD5_LEN; /* MD5 length */
 	uint32_t dlen;
@@ -372,7 +372,7 @@ static PyObject* KeyObject_to_ssh(PyObject *s)
 	char *blob = NULL;
 	char *b64 = NULL;
 	size_t blob_len;
-	size_t b64_len;
+	size_t b64_len = 0;
 	PyObject *ret = NULL;
 	KeyObject *self = (KeyObject *)s;
 
