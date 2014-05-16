@@ -38,6 +38,7 @@ endif()
 
 file(GLOB SOURCES "src/*.[ch]")
 python_add_module(ecdsa ${SOURCES})
+set_target_properties(ecdsa PROPERTIES PREFIX "")  # older CMake versions don't remove prefix on their own
 target_link_libraries(ecdsa ${RESOLVLIB} ${PYTHON_LIBRARIES} ${OPENSSL_LIBRARIES})
 
 option(INSTALL_DIR "Relative to prefix directory where to install" "")
