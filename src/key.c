@@ -48,9 +48,9 @@ typedef struct
 	PyObject_HEAD
 	int nid;
 	EC_KEY *key;
-} KeyObject; 
+} KeyObject;
 
-int validate_public_key(const EC_GROUP *curve, const EC_POINT *point)
+static inline int validate_public_key(const EC_GROUP *curve, const EC_POINT *point)
 {
 	BN_CTX *bnctx = NULL;
 	BIGNUM *x, *y, *order, *tmp;
@@ -135,7 +135,7 @@ vpk_cleanup:
 	return res;
 }
 
-int validate_private_key(const EC_KEY *key)
+static inline int validate_private_key(const EC_KEY *key)
 {
 	BN_CTX *bnctx;
 	BIGNUM *order, *tmp;
@@ -182,15 +182,18 @@ vprk_cleanup:
 	return res;
 }
 
-int public_key_to_ssh(char **buffer, size_t *len, EC_KEY *key, int nid)
+static inline int serialize_key(char **buffer, size_t *len, EC_KEY *key, int nid, int dump_private)
 {
 	const EC_GROUP *curve;
 	const EC_POINT *point;
-	BN_CTX *bnctx;
-	char *buffer_in;
-	size_t point_len;
-	uint32_t nid_name_len, curve_name_len;
+	BN_CTX *bnctx = NULL;
+	const BIGNUM *pkey = NULL;
+	char *buffer_in = NULL;
+	size_t point_len = 0;
+	uint32_t nid_name_len = 0, curve_name_len = 0;
 	int res = 0;
+	char *exponent = NULL;
+	size_t exponent_len = 0;
 
 	const char *nid_name = nid_name_of_nid(nid);
 	const char *curve_name = curve_name_of_nid(nid);
@@ -215,13 +218,25 @@ int public_key_to_ssh(char **buffer, size_t *len, EC_KEY *key, int nid)
 		goto pks_cleanup;
 	}
 
+	if (dump_private && ((pkey = EC_KEY_get0_private_key(key)) != NULL))
+	{
+		if (!str_of_bn(pkey, &exponent, &exponent_len))
+		{
+			PyErr_SetString(PyExc_MemoryError, "Can't allocate memory for key");
+			goto pks_cleanup;
+		}
+	}
+
 	point_len = EC_POINT_point2oct(curve, point, POINT_CONVERSION_UNCOMPRESSED, NULL, 0, bnctx);
 	*len = 4 + nid_name_len + 4 + curve_name_len + 4 + point_len;
+
+	if (pkey)
+		*len += 4 + exponent_len;
 
 	*buffer = (char *)malloc(*len + 1);
 	if (!*buffer)
 	{
-		PyErr_SetString(PyExc_MemoryError, "Can't allocate memory for fingerprint");
+		PyErr_SetString(PyExc_MemoryError, "Can't allocate memory for key");
 		goto pks_cleanup;
 	}
 
@@ -230,13 +245,143 @@ int public_key_to_ssh(char **buffer, size_t *len, EC_KEY *key, int nid)
 	write_str(&buffer_in, curve_name, curve_name_len);
 	write_u32(&buffer_in, point_len);
 	EC_POINT_point2oct(curve, point, POINT_CONVERSION_UNCOMPRESSED, (unsigned char *)buffer_in, point_len, bnctx);
-	buffer_in[point_len] = 0;
+	buffer_in += point_len;
+	if (exponent)
+		write_str(&buffer_in, exponent, exponent_len);
+	buffer_in[0] = 0;
 
 	res = 1;
 pks_cleanup:
 	if (bnctx)
 		BN_CTX_free(bnctx);
+	if (exponent)
+		explicit_bzero(exponent, exponent_len);
 	return res;
+}
+
+static inline int unserialize_key(EC_KEY **key, char *str, size_t str_len, int allow_private)
+{
+	EC_POINT *point = NULL;
+
+	char *buffer = str;
+	size_t buffer_len = str_len;
+
+	char *key_name = NULL;
+	size_t key_name_len = 0;
+
+	char *curve_name = NULL;
+	size_t curve_name_len = 0;
+
+	int nid = 0;
+
+	BIGNUM *exponent = NULL;
+
+	*key = NULL;
+
+	if (str_len == 0)
+	{
+		PyErr_SetString(PyExc_ValueError, "Invalid string provided");
+		goto uk_fail;
+	}
+
+	if (!read_str(&buffer, &buffer_len, &key_name, &key_name_len))
+	{
+		PyErr_SetString(PyExc_ValueError, "Can't read key type from key");
+		goto uk_fail;
+	}
+	if ((nid = nid_of_nid_name(key_name)) == 0)
+	{
+		PyErr_SetString(PyExc_ValueError, "Unsupported key format");
+		goto uk_fail;
+	}
+
+	if (!read_str(&buffer, &buffer_len, &curve_name, &curve_name_len))
+	{
+		PyErr_SetString(PyExc_ValueError, "Can't read curve type from key");
+		goto uk_fail;
+	}
+	if (nid != nid_of_curve_name(curve_name))
+	{
+		PyErr_SetString(PyExc_ValueError, "Key and curve types don't match");
+		goto uk_fail;
+	}
+
+	*key = EC_KEY_new_by_curve_name(nid);
+
+	if ((point = EC_POINT_new(EC_KEY_get0_group(*key))) == NULL)
+	{
+		PyErr_SetString(PyExc_ValueError, "Can't create key point");
+		goto uk_fail;
+	}
+
+	if (!read_point(&buffer, &buffer_len, EC_KEY_get0_group(*key), point))
+	{
+		PyErr_SetString(PyExc_ValueError, "Can't read key point");
+		goto uk_fail;
+	}
+
+	if (EC_KEY_set_public_key(*key, point) != 1)
+	{
+		PyErr_SetString(PyExc_ValueError, "Can't apply public key");
+		goto uk_fail;
+	}
+
+	if (!allow_private && buffer_len)
+	{
+		PyErr_SetString(PyExc_ValueError, "Trailing characters left");
+		goto uk_fail;
+	}
+
+	if (buffer_len)
+	{
+		if ((exponent = BN_new()) == NULL)
+		{
+			PyErr_SetString(PyExc_MemoryError, "Can't allocate memory for private key");
+			goto uk_fail;
+		}
+		if (!read_bn(&buffer, &buffer_len, exponent))
+		{
+			PyErr_SetString(PyExc_ValueError, "Can't read private key");
+			goto uk_fail;
+		}
+		if(EC_KEY_set_private_key(*key, exponent) != 1)
+		{
+			PyErr_SetString(PyExc_ValueError, "Can't set private key");
+			goto uk_fail;
+		}
+	}
+
+	if (buffer_len)
+	{
+		PyErr_SetString(PyExc_ValueError, "Trailing characters left");
+		goto uk_fail;
+	}
+
+	if (!validate_public_key(EC_KEY_get0_group(*key), point))
+		goto uk_fail;
+	if (exponent && !validate_private_key(*key))
+		goto uk_fail;
+
+	goto uk_cleanup;
+
+uk_fail:
+	nid = 0;
+	if (*key)
+	{
+		EC_KEY_free(*key);
+		*key = NULL;
+	}
+uk_cleanup:
+	if(key_name)
+		free(key_name);
+	if(curve_name)
+		free(curve_name);
+	if (point)
+		EC_POINT_free(point);
+	if (exponent)
+		BN_clear_free(exponent);
+
+	return nid;
 }
 
 /* Object methods */
@@ -264,6 +409,7 @@ static const char nid_name_doc[] = "k.nid_name(): get the curve name.\n:return: 
 static PyObject* KeyObject_fingerprint(PyObject *s)
 {
 	KeyObject *self = (KeyObject *)s;
+
 	EVP_MD_CTX md5ctx;
 	char *blob = NULL, *digest = NULL;
 	size_t blob_len;
@@ -271,7 +417,7 @@ static PyObject* KeyObject_fingerprint(PyObject *s)
 	uint32_t dlen;
 	PyObject *ret = NULL;
 
-	if (!public_key_to_ssh(&blob, &blob_len, self->key, self->nid))
+	if (!serialize_key(&blob, &blob_len, self->key, self->nid, 0))
 		goto fp_cleanup;
 
 	digest = (char *)malloc(digest_len + 1);
@@ -367,6 +513,30 @@ ktp_cleanup:
 
 static const char to_pem_doc[] = "k.to_pem(): get the key PEM-encoded.\nEncodes private key into PEM container. Neither passwords nor public key encoding is currently suppoered.\n:return: string PEM-encoded key";
 
+static PyObject* KeyObject_to_raw(PyObject *s)
+{
+	char *blob = NULL;
+	size_t blob_len;
+	PyObject *ret = NULL;
+	KeyObject *self = (KeyObject *)s;
+
+	if (!serialize_key(&blob, &blob_len, self->key, self->nid, 1))
+		goto ktr_cleanup;
+
+	ret = PyString_FromStringAndSize(blob, blob_len);
+ktr_cleanup:
+	if (blob)
+	{
+		/* Cleanup memory for security reasons */
+		explicit_bzero(blob, blob_len);
+		free(blob);
+	}
+
+	return ret;
+}
+
+static const char to_raw_doc[] = "k.to_raw(): get the key network-encoded.\nEncodes key for network transmission, as SSH does.\n:return: raw sequence of bytes, containing your private or public key";
+
 static PyObject* KeyObject_to_ssh(PyObject *s)
 {
 	char *blob = NULL;
@@ -376,7 +546,7 @@ static PyObject* KeyObject_to_ssh(PyObject *s)
 	PyObject *ret = NULL;
 	KeyObject *self = (KeyObject *)s;
 
-	if (!public_key_to_ssh(&blob, &blob_len, self->key, self->nid))
+	if (!serialize_key(&blob, &blob_len, self->key, self->nid, 0))
 		goto kts_cleanup;
 
 	if (!encode_base64(blob, blob_len, &b64, &b64_len))
@@ -625,12 +795,17 @@ static PyObject* KeyObject_has_private(PyObject *s)
 
 static const char has_private_doc[] = "k.has_private(): check if the key has private component required to sign the data.\n:return: boolean check result";
 
+static PyObject* KeyObject_public_key(PyObject *s);
+static const char public_key_doc[] = "k.public_key(): get key without private exponent.\n:return: self if key is public, else corresponding public ecdsa.Key";
+
 static PyObject* KeyObject_from_string(PyObject *c, PyObject *string);
 static const char from_string_doc[] = "Key.from_string(str): read the key from str, deducing the encoding type.\nCurrently PEM encoding and SSH-encoding without prefixes/suffixes are supported.\n:raise ValueError: in case of key cannot be parsed\n:return: Key object";
 static PyObject* KeyObject_from_pem(PyObject *c, PyObject *string);
 static const char from_pem_doc[] = "Key.from_pem(s): read the PEM-encoded key from s.\n:param string s: PEM-encoded key\n:raise ValueError: in case of key cannot be parsed\n:return: Key object";
 static PyObject* KeyObject_from_ssh(PyObject *c, PyObject *string);
 static const char from_ssh_doc[] = "Key.from_ssh(s): read the SSH-encoded key from s.\n:param string s: SSH-encoded key\n:raise ValueError: in case of key cannot be parsed\n:return: Key object";
+static PyObject* KeyObject_from_raw(PyObject *c, PyObject *string);
+static const char from_raw_doc[] = "Key.from_raw(s): read the SSH-compatible network-encoded key from s.\n:param string s: raw sequence of bytes with public or private key\n:raise ValueError; in case of key cannot be parsed\n:return Key object";
 static PyObject* KeyObject_generate(PyObject *c, PyObject *args);
 static const char generate_doc[] = "Key.generate(bits): generate new ECDSA private key using bits length curve.\n:param int bits: bits number, only 256, 384 and 521 are supported\n:raise ValueError: if key cannot be generated for some reasons\n:return: Key object";
 
@@ -642,12 +817,15 @@ static PyMethodDef KeyObject_methods[] =
 	{"from_string", (PyCFunction)KeyObject_from_string, METH_CLASS|METH_O, from_string_doc},
 	{"from_pem", (PyCFunction)KeyObject_from_pem, METH_CLASS|METH_O, from_pem_doc},
 	{"from_ssh", (PyCFunction)KeyObject_from_ssh, METH_CLASS|METH_O, from_ssh_doc},
+	{"from_raw", (PyCFunction)KeyObject_from_raw, METH_CLASS|METH_O, from_raw_doc},
 	{"generate", (PyCFunction)KeyObject_generate, METH_CLASS|METH_VARARGS, generate_doc},
 	{"to_pem", (PyCFunction)KeyObject_to_pem, METH_NOARGS, to_pem_doc},
 	{"to_ssh", (PyCFunction)KeyObject_to_ssh, METH_NOARGS, to_ssh_doc},
+	{"to_raw", (PyCFunction)KeyObject_to_raw, METH_NOARGS, to_raw_doc},
 	{"sign", (PyCFunction)KeyObject_sign, METH_O, sign_doc},
 	{"verify", (PyCFunction)KeyObject_verify, METH_VARARGS, verify_doc},
 	{"has_private", (PyCFunction)KeyObject_has_private, METH_NOARGS, has_private_doc},
+	{"public_key", (PyCFunction)KeyObject_public_key, METH_NOARGS, public_key_doc},
 	{NULL, NULL, 0, NULL},
 };
 
@@ -698,6 +876,30 @@ static PyTypeObject key_Type =
 	Py_TPFLAGS_DEFAULT,		/* tp_flags */
 	"ECDSA key",			/* tp_doc */
 };
+
+static PyObject* KeyObject_public_key(PyObject *s)
+{
+	KeyObject *self = (KeyObject *)s;
+	KeyObject *copy = NULL;
+	if (EC_KEY_get0_private_key(self->key) == NULL)
+	{
+		Py_INCREF(s);
+		return s;
+	}
+
+	if ((copy = PyObject_New(KeyObject, &key_Type)) == NULL)
+		return NULL;
+
+	copy->nid = self->nid;
+	if ((copy->key = EC_KEY_dup(self->key)) == NULL)
+	{
+		KeyObject_dealloc(copy);
+		PyErr_SetString(PyExc_MemoryError, "Can't create key copy");
+		return NULL;
+	}
+	EC_KEY_set_private_key(copy->key, NULL);
+	return (PyObject *)copy;
+}
 
 /* Class methods */
 
@@ -764,6 +966,7 @@ static PyObject* KeyObject_from_pem(PyObject *c, PyObject *string)
 	BIO *bio = NULL;
 	EVP_PKEY *pk = NULL;
 	KeyObject *ret = NULL;
+	int is_public = 1;
 
 	Py_ssize_t string_len = PyString_Size(string);
 
@@ -781,7 +984,12 @@ static PyObject* KeyObject_from_pem(PyObject *c, PyObject *string)
 
 	/* TODO: support for passphrase */
 	/* pk = PEM_read_bio_PrivateKey(bio, NULL, NULL, (char *)passphrase); */
-	pk = PEM_read_bio_PrivateKey(bio, NULL, NULL, (char*)"");
+	pk = PEM_read_bio_PrivateKey(bio, NULL, NULL, (char *)"");
+
+	if (pk != NULL)
+		is_public = 0;
+	else
+		pk = PEM_read_bio_PUBKEY(bio, NULL, NULL, (char *)"");
 
 	if (pk == NULL)
 	{
@@ -806,7 +1014,7 @@ static PyObject* KeyObject_from_pem(PyObject *c, PyObject *string)
 		(ret->nid = nid_of_key(ret->key)) == 0
 		|| !curve_name_of_nid(ret->nid)
 		|| !validate_public_key(EC_KEY_get0_group(ret->key), EC_KEY_get0_public_key(ret->key))
-		|| !validate_private_key(ret->key)
+		|| !(is_public || validate_private_key(ret->key))
 	)
 	{
 		PyErr_SetString(PyExc_ValueError, "Invalid key");
@@ -824,18 +1032,11 @@ key_from_pem_cleanup:
 
 static PyObject* KeyObject_from_ssh(PyObject *c, PyObject *string)
 {
-	EC_POINT *point = NULL;
-
-	char *buffer = NULL, *buffer_in;
-	size_t buffer_len = 0, buffer_in_len = 0;
-
-	char *key_name = NULL;
-	size_t key_name_len = 0;
-
-	char *curve_name = NULL;
-	size_t curve_name_len = 0;
+	char *buffer = NULL;
+	size_t buffer_len = 0;
 
 	KeyObject *ret = NULL;
+	EC_KEY *key = NULL;
 	int nid = 0;
 
 	Py_ssize_t string_len = PyString_Size(string);
@@ -851,28 +1052,13 @@ static PyObject* KeyObject_from_ssh(PyObject *c, PyObject *string)
 		goto key_from_ssh_cleanup;
 	}
 
-	buffer_in = buffer;
-	buffer_in_len = buffer_len;
+	nid = unserialize_key(&key, buffer, buffer_len, 0);
+	if (!nid)
+		goto destroy_key_from_ssh_cleanup;
 
-	if (!read_str(&buffer_in, &buffer_in_len, &key_name, &key_name_len))
+	if (!key)
 	{
-		PyErr_SetString(PyExc_ValueError, "Can't read key type from key");
-		goto key_from_ssh_cleanup;
-	}
-	if ((nid = nid_of_nid_name(key_name)) == 0)
-	{
-		PyErr_SetString(PyExc_ValueError, "Unsupported key format");
-		goto key_from_ssh_cleanup;
-	}
-
-	if (!read_str(&buffer_in, &buffer_in_len, &curve_name, &curve_name_len))
-	{
-		PyErr_SetString(PyExc_ValueError, "Can't read curve type from key");
-		goto key_from_ssh_cleanup;
-	}
-	if (nid != nid_of_curve_name(curve_name))
-	{
-		PyErr_SetString(PyExc_ValueError, "Key and curve types don't match");
+		PyErr_SetString(PyExc_ValueError, "WTH? Key is null!");
 		goto key_from_ssh_cleanup;
 	}
 
@@ -880,54 +1066,58 @@ static PyObject* KeyObject_from_ssh(PyObject *c, PyObject *string)
 	if (ret == NULL)
 	{
 		PyErr_SetString(PyExc_MemoryError, "Can't create key object");
-		goto key_from_ssh_cleanup;
+		goto destroy_key_from_ssh_cleanup;
 	}
 
 	ret->nid = nid;
-	ret->key = EC_KEY_new_by_curve_name(nid);
+	ret->key = key;
 
-	if ((point = EC_POINT_new(EC_KEY_get0_group(ret->key))) == NULL)
-	{
-		PyErr_SetString(PyExc_ValueError, "Can't create key point");
-		goto destroy_key_from_ssh_cleanup;
-	}
-
-	if (!read_point(&buffer_in, &buffer_in_len, EC_KEY_get0_group(ret->key), point))
-	{
-		PyErr_SetString(PyExc_ValueError, "Can't read key point");
-		goto destroy_key_from_ssh_cleanup;
-	}
-
-	if (EC_KEY_set_public_key(ret->key, point) != 1)
-	{
-		PyErr_SetString(PyExc_ValueError, "Can't apply public key");
-		goto destroy_key_from_ssh_cleanup;
-	}
-
-	if (!validate_public_key(EC_KEY_get0_group(ret->key), point))
-		goto destroy_key_from_ssh_cleanup;
-	
 	goto key_from_ssh_cleanup;
 
 destroy_key_from_ssh_cleanup:
-	if(ret)
-	{
-		KeyObject_dealloc(ret);
-		ret = NULL;
-	}
+	if (key)
+		EC_KEY_free(key);
 key_from_ssh_cleanup:
-	if(key_name)
-		free(key_name);
-	if(curve_name)
-		free(curve_name);
-	if (point)
-		EC_POINT_free(point);
 	if(buffer)
 	{
 		explicit_bzero(buffer, buffer_len);
 		free(buffer);
 	}
 
+	return (PyObject *)ret;
+}
+
+static PyObject* KeyObject_from_raw(PyObject *c, PyObject *string)
+{
+	KeyObject *ret = NULL;
+	EC_KEY *key = NULL;
+	int nid = 0;
+	Py_ssize_t string_len = PyString_Size(string);
+
+	if (string_len <= 0)
+	{
+		PyErr_SetString(PyExc_ValueError, "Invalid string provided");
+		goto key_from_raw_cleanup;
+	}
+	if ((nid = unserialize_key(&key, PyString_AsString(string), string_len, 1)) == 0)
+		goto key_from_raw_cleanup;
+
+	ret = (KeyObject *)PyObject_New(KeyObject, &key_Type);
+	if (ret == NULL)
+	{
+		PyErr_SetString(PyExc_MemoryError, "Can't create key object");
+		goto destroy_key_from_raw_cleanup;
+	}
+
+	ret->nid = nid;
+	ret->key = key;
+
+	goto key_from_raw_cleanup;
+
+destroy_key_from_raw_cleanup:
+	if (key)
+		EC_KEY_free(key);
+key_from_raw_cleanup:
 	return (PyObject *)ret;
 }
 

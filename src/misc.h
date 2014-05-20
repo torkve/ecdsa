@@ -207,7 +207,7 @@ static inline void write_str(char **str, const char *v, uint32_t len)
 	*str += len;
 }
 
-static inline int str_of_bn(BIGNUM *bn, char **dst, size_t *dst_len)
+static inline int str_of_bn(const BIGNUM *bn, char **dst, size_t *dst_len)
 {
 	int wtn = 0;
 	char *ptr = NULL, *ptr2 = NULL;

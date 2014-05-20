@@ -2,6 +2,7 @@ __author__ = 'torkve'
 
 from ecdsa import Key
 from unittest import TestCase, main
+import base64
 
 
 class TestKey(TestCase):
@@ -36,6 +37,8 @@ class TestKey(TestCase):
             self.assertEquals(key.to_ssh(), pub)
             self.assertTrue(key.has_private())
             self.assertEquals(key.fingerprint(), fp)
+            self.assertEquals(key.public_key().to_ssh(), pub)
+            self.assertEquals(base64.b64encode(key.public_key().to_raw()), pub)
 
             key = Key.from_pem(priv)
             self.assertEquals(key.nid_name(), curve)
@@ -43,6 +46,8 @@ class TestKey(TestCase):
             self.assertEquals(key.to_ssh(), pub)
             self.assertTrue(key.has_private())
             self.assertEquals(key.fingerprint(), fp)
+            self.assertEquals(key.public_key().to_ssh(), pub)
+            self.assertEquals(base64.b64encode(key.public_key().to_raw()), pub)
 
             self.assertRaises(ValueError, Key.from_ssh, priv)
 
@@ -52,6 +57,8 @@ class TestKey(TestCase):
             self.assertRaises(ValueError, key.to_pem)
             self.assertFalse(key.has_private())
             self.assertEquals(key.fingerprint(), fp)
+            self.assertEquals(base64.b64encode(key.to_raw()), pub)
+            self.assertIs(key.public_key(), key)
 
             key = Key.from_ssh(pub)
             self.assertEquals(key.nid_name(), curve)
@@ -59,6 +66,8 @@ class TestKey(TestCase):
             self.assertRaises(ValueError, key.to_pem)
             self.assertFalse(key.has_private())
             self.assertEquals(key.fingerprint(), fp)
+            self.assertEquals(base64.b64encode(key.to_raw()), pub)
+            self.assertIs(key.public_key(), key)
 
             self.assertRaises(ValueError, Key.from_pem, pub)
 
