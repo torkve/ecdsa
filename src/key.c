@@ -220,6 +220,7 @@ static inline int serialize_key(char **buffer, size_t *len, EC_KEY *key, int nid
 
 	if (dump_private && ((pkey = EC_KEY_get0_private_key(key)) != NULL))
 	{
+		debug_bn(exponent, pkey);
 		if (!str_of_bn(pkey, &exponent, &exponent_len))
 		{
 			PyErr_SetString(PyExc_MemoryError, "Can't allocate memory for key");
@@ -231,7 +232,7 @@ static inline int serialize_key(char **buffer, size_t *len, EC_KEY *key, int nid
 	*len = 4 + nid_name_len + 4 + curve_name_len + 4 + point_len;
 
 	if (pkey)
-		*len += 4 + exponent_len;
+		*len += exponent_len;
 
 	*buffer = (char *)malloc(*len + 1);
 	if (!*buffer)
@@ -245,9 +246,14 @@ static inline int serialize_key(char **buffer, size_t *len, EC_KEY *key, int nid
 	write_str(&buffer_in, curve_name, curve_name_len);
 	write_u32(&buffer_in, point_len);
 	EC_POINT_point2oct(curve, point, POINT_CONVERSION_UNCOMPRESSED, (unsigned char *)buffer_in, point_len, bnctx);
+	debug("wrote point to %lx (%lu)", (size_t)buffer_in, point_len);
 	buffer_in += point_len;
 	if (exponent)
-		write_str(&buffer_in, exponent, exponent_len);
+	{
+		memcpy(buffer_in, exponent, exponent_len);
+		debug("wrote bn to %lx (%lu): `%s`", (size_t)buffer_in, exponent_len, exponent);
+		buffer_in += exponent_len;
+	}
 	buffer_in[0] = 0;
 
 	res = 1;
@@ -255,7 +261,10 @@ pks_cleanup:
 	if (bnctx)
 		BN_CTX_free(bnctx);
 	if (exponent)
+	{
 		explicit_bzero(exponent, exponent_len);
+		free(exponent);
+	}
 	return res;
 }
 
@@ -349,10 +358,12 @@ static inline int unserialize_key(EC_KEY **key, char *str, size_t str_len, int a
 			PyErr_SetString(PyExc_ValueError, "Can't set private key");
 			goto uk_fail;
 		}
+		debug_bn(exponent, exponent);
 	}
 
 	if (buffer_len)
 	{
+		debug("%ld characters left", buffer_len);
 		PyErr_SetString(PyExc_ValueError, "Trailing characters left");
 		goto uk_fail;
 	}
@@ -520,6 +531,7 @@ static PyObject* KeyObject_to_raw(PyObject *s)
 	PyObject *ret = NULL;
 	KeyObject *self = (KeyObject *)s;
 
+	debugs("dumping key in raw format");
 	if (!serialize_key(&blob, &blob_len, self->key, self->nid, 1))
 		goto ktr_cleanup;
 
@@ -1093,6 +1105,8 @@ static PyObject* KeyObject_from_raw(PyObject *c, PyObject *string)
 	EC_KEY *key = NULL;
 	int nid = 0;
 	Py_ssize_t string_len = PyString_Size(string);
+
+	debug("reading raw key (%ld): `%s`", string_len, PyString_AsString(string));
 
 	if (string_len <= 0)
 	{

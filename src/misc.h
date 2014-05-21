@@ -383,6 +383,7 @@ static inline int read_bn(char **str, size_t *str_len, BIGNUM *bn)
 		debug("failed to read BN (%lu)", *str_len);
 		return 0;
 	}
+	debug("read bn from %lx (%u)", (size_t)*str, len);
 
 	*str += len;
 	*str_len -= len;

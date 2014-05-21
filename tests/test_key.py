@@ -40,6 +40,8 @@ class TestKey(TestCase):
             self.assertEquals(key.public_key().to_ssh(), pub)
             self.assertEquals(base64.b64encode(key.public_key().to_raw()), pub)
 
+            self.assertEquals(key.to_raw(), Key.from_raw(key.to_raw()).to_raw())
+
             key = Key.from_pem(priv)
             self.assertEquals(key.nid_name(), curve)
             self.assertEquals(key.to_pem(), priv)
@@ -48,6 +50,8 @@ class TestKey(TestCase):
             self.assertEquals(key.fingerprint(), fp)
             self.assertEquals(key.public_key().to_ssh(), pub)
             self.assertEquals(base64.b64encode(key.public_key().to_raw()), pub)
+
+            self.assertEquals(key.to_raw(), Key.from_raw(key.to_raw()).to_raw())
 
             self.assertRaises(ValueError, Key.from_ssh, priv)
 
@@ -59,6 +63,7 @@ class TestKey(TestCase):
             self.assertEquals(key.fingerprint(), fp)
             self.assertEquals(base64.b64encode(key.to_raw()), pub)
             self.assertIs(key.public_key(), key)
+            self.assertEquals(key.to_raw(), Key.from_raw(key.to_raw()).to_raw())
 
             key = Key.from_ssh(pub)
             self.assertEquals(key.nid_name(), curve)
@@ -68,6 +73,7 @@ class TestKey(TestCase):
             self.assertEquals(key.fingerprint(), fp)
             self.assertEquals(base64.b64encode(key.to_raw()), pub)
             self.assertIs(key.public_key(), key)
+            self.assertEquals(key.to_raw(), Key.from_raw(key.to_raw()).to_raw())
 
             self.assertRaises(ValueError, Key.from_pem, pub)
 
