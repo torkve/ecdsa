@@ -27,7 +27,7 @@ class TestKey(TestCase):
         ),
     ]
 
-    def test_serialize(self):
+    def test_from_string_priv(self):
         for curve, fp, pub, priv in self.keys:
             fp = ''.join(x.decode('hex') for x in fp.split(':'))
 
@@ -41,6 +41,11 @@ class TestKey(TestCase):
             self.assertEquals(base64.b64encode(key.public_key().to_raw()), pub)
 
             self.assertEquals(key.to_raw(), Key.from_raw(key.to_raw()).to_raw())
+            self.assertEquals(fp, Key.from_raw(key.to_raw()).fingerprint())
+
+    def test_from_pem_priv(self):
+        for curve, fp, pub, priv in self.keys:
+            fp = ''.join(x.decode('hex') for x in fp.split(':'))
 
             key = Key.from_pem(priv)
             self.assertEquals(key.nid_name(), curve)
@@ -52,29 +57,50 @@ class TestKey(TestCase):
             self.assertEquals(base64.b64encode(key.public_key().to_raw()), pub)
 
             self.assertEquals(key.to_raw(), Key.from_raw(key.to_raw()).to_raw())
+            self.assertEquals(fp, Key.from_raw(key.to_raw()).fingerprint())
 
+    def test_from_ssh_priv(self):
+        for curve, fp, pub, priv in self.keys:
             self.assertRaises(ValueError, Key.from_ssh, priv)
+
+    def test_from_string_pub(self):
+        for curve, fp, pub, priv in self.keys:
+            fp = ''.join(x.decode('hex') for x in fp.split(':'))
 
             key = Key.from_string(pub)
             self.assertEquals(key.nid_name(), curve)
             self.assertEquals(key.to_ssh(), pub)
-            self.assertRaises(ValueError, key.to_pem)
             self.assertFalse(key.has_private())
             self.assertEquals(key.fingerprint(), fp)
             self.assertEquals(base64.b64encode(key.to_raw()), pub)
             self.assertIs(key.public_key(), key)
+
             self.assertEquals(key.to_raw(), Key.from_raw(key.to_raw()).to_raw())
+            self.assertEquals(fp, Key.from_raw(key.to_raw()).fingerprint())
+
+            self.assertEquals(Key.from_pem(key.to_pem()).to_ssh(), pub)
+            self.assertEquals(fp, Key.from_pem(key.to_pem()).fingerprint())
+
+    def test_from_ssh_pub(self):
+        for curve, fp, pub, priv in self.keys:
+            fp = ''.join(x.decode('hex') for x in fp.split(':'))
 
             key = Key.from_ssh(pub)
             self.assertEquals(key.nid_name(), curve)
             self.assertEquals(key.to_ssh(), pub)
-            self.assertRaises(ValueError, key.to_pem)
             self.assertFalse(key.has_private())
             self.assertEquals(key.fingerprint(), fp)
             self.assertEquals(base64.b64encode(key.to_raw()), pub)
             self.assertIs(key.public_key(), key)
-            self.assertEquals(key.to_raw(), Key.from_raw(key.to_raw()).to_raw())
 
+            self.assertEquals(key.to_raw(), Key.from_raw(key.to_raw()).to_raw())
+            self.assertEquals(fp, Key.from_raw(key.to_raw()).fingerprint())
+
+            self.assertEquals(Key.from_pem(key.to_pem()).to_ssh(), pub)
+            self.assertEquals(fp, Key.from_pem(key.to_pem()).fingerprint())
+
+    def test_from_pem_pub(self):
+        for curve, fp, pub, priv in self.keys:
             self.assertRaises(ValueError, Key.from_pem, pub)
 
     def test_generate(self):

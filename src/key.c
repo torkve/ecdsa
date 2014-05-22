@@ -491,23 +491,28 @@ static PyObject* KeyObject_to_pem(PyObject *s)
 	int blob_len = 0;
 	PyObject *ret = NULL;
 
-	if (!pk)
-	{
-		PyErr_SetString(PyExc_ValueError, "Key has no private exponent and cannot be serialized");
-		goto ktp_cleanup;
-	}
-
 	if ((bio = BIO_new(BIO_s_mem())) == NULL)
 	{
 		PyErr_SetString(PyExc_MemoryError, "Cannot create buffer");
 		goto ktp_cleanup;
 	}
 
-	/* TODO: support passphrase */
-	if (!PEM_write_bio_ECPrivateKey(bio, self->key, NULL, NULL, 0, NULL, NULL))
+	if (pk)
 	{
-		PyErr_SetString(PyExc_ValueError, "Cannot write key");
-		goto ktp_cleanup;
+		/* TODO: support passphrase */
+		if (!PEM_write_bio_ECPrivateKey(bio, self->key, NULL, NULL, 0, NULL, NULL))
+		{
+			PyErr_SetString(PyExc_ValueError, "Cannot write key");
+			goto ktp_cleanup;
+		}
+	}
+	else
+	{
+		if(!PEM_write_bio_EC_PUBKEY(bio, self->key))
+		{
+			PyErr_SetString(PyExc_ValueError, "Cannot write key");
+			goto ktp_cleanup;
+		}
 	}
 
 	if ((blob_len = BIO_get_mem_data(bio, &blob)) <= 0)
@@ -522,7 +527,7 @@ ktp_cleanup:
 	return ret;
 }
 
-static const char to_pem_doc[] = "k.to_pem(): get the key PEM-encoded.\nEncodes private key into PEM container. Neither passwords nor public key encoding is currently suppoered.\n:return: string PEM-encoded key";
+static const char to_pem_doc[] = "k.to_pem(): get the key PEM-encoded.\nEncodes public or private key into PEM container. Passwords are not currently supported.\n:return: string PEM-encoded key";
 
 static PyObject* KeyObject_to_raw(PyObject *s)
 {
@@ -999,9 +1004,16 @@ static PyObject* KeyObject_from_pem(PyObject *c, PyObject *string)
 	pk = PEM_read_bio_PrivateKey(bio, NULL, NULL, (char *)"");
 
 	if (pk != NULL)
+	{
+		debug("loaded private key: %lx", (size_t)pk);
 		is_public = 0;
+	}
 	else
-		pk = PEM_read_bio_PUBKEY(bio, NULL, NULL, (char *)"");
+	{
+		BIO_reset(bio);
+		pk = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
+		debug("loaded public key: %lx", (size_t)pk);
+	}
 
 	if (pk == NULL)
 	{
@@ -1014,6 +1026,7 @@ static PyObject* KeyObject_from_pem(PyObject *c, PyObject *string)
 		goto key_from_pem_cleanup;
 	}
 
+
 	ret = (KeyObject *)PyObject_New(KeyObject, &key_Type);
 	if (ret == NULL)
 	{
@@ -1022,8 +1035,11 @@ static PyObject* KeyObject_from_pem(PyObject *c, PyObject *string)
 	}
 
 	ret->key = EVP_PKEY_get1_EC_KEY(pk);
+	ret->nid = nid_of_key(ret->key);
+	debug("key object is %lx", (size_t)ret->key);
+	debug("nid is %d", ret->nid);
 	if (
-		(ret->nid = nid_of_key(ret->key)) == 0
+		ret->nid == 0
 		|| !curve_name_of_nid(ret->nid)
 		|| !validate_public_key(EC_KEY_get0_group(ret->key), EC_KEY_get0_public_key(ret->key))
 		|| !(is_public || validate_private_key(ret->key))
@@ -1073,6 +1089,7 @@ static PyObject* KeyObject_from_ssh(PyObject *c, PyObject *string)
 		PyErr_SetString(PyExc_ValueError, "WTH? Key is null!");
 		goto key_from_ssh_cleanup;
 	}
+	EC_KEY_set_asn1_flag(key, 1);
 
 	ret = (KeyObject *)PyObject_New(KeyObject, &key_Type);
 	if (ret == NULL)

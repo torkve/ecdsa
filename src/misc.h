@@ -156,21 +156,29 @@ static inline int nid_of_key(EC_KEY *key)
 	int nid = 0;
 	const keytype *kt;
 	const EC_GROUP *curve = EC_KEY_get0_group(key);
+	debug("key curve is %lx", (size_t)curve);
 
 	if ((nid = EC_GROUP_get_curve_name(curve)) > 0)
 		return nid;
 
 	if ((bnctx = BN_CTX_new()) == NULL)
+	{
+		debugs("failed to create BN context");
 		return 0;
+	}
 
 	nid = 0;
 
 	for (kt = keytypes; kt->name != NULL; ++kt)
 	{
 		if ((g = EC_GROUP_new_by_curve_name(kt->nid)) == NULL)
-			goto nid_of_key_cleanup;
-		if (EC_GROUP_cmp(g, curve, bnctx) == 0)
 		{
+			debugs("failed to create EC group");
+			goto nid_of_key_cleanup;
+		}
+		if (EC_GROUP_cmp(curve, g, bnctx) == 0)
+		{
+			debug("group matches nid %d", kt->nid);
 			EC_GROUP_set_asn1_flag(g, OPENSSL_EC_NAMED_CURVE);
 			if (EC_KEY_set_group(key, g) != 1)
 			{
@@ -182,6 +190,7 @@ static inline int nid_of_key(EC_KEY *key)
 		}
 		EC_GROUP_free(g);
 	}
+	debugs("group matches no nid");
 
 nid_of_key_cleanup:
 	if (bnctx)
