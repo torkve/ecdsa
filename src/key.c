@@ -53,7 +53,7 @@ typedef struct
 static inline int validate_public_key(const EC_GROUP *curve, const EC_POINT *point)
 {
 	BN_CTX *bnctx = NULL;
-	BIGNUM *x, *y, *order, *tmp;
+	BIGNUM *x = NULL, *y = NULL, *order = NULL, *tmp = NULL;
 	EC_POINT *q = NULL;
 
 	int res = 0;
@@ -137,8 +137,8 @@ vpk_cleanup:
 
 static inline int validate_private_key(const EC_KEY *key)
 {
-	BN_CTX *bnctx;
-	BIGNUM *order, *tmp;
+	BN_CTX *bnctx = NULL;
+	BIGNUM *order = NULL, *tmp = NULL;
 	int res = 0;
 
 	if ((bnctx = BN_CTX_new()) == NULL)
@@ -184,8 +184,8 @@ vprk_cleanup:
 
 static inline int serialize_key(char **buffer, size_t *len, EC_KEY *key, int nid, int dump_private)
 {
-	const EC_GROUP *curve;
-	const EC_POINT *point;
+	const EC_GROUP *curve = NULL;
+	const EC_POINT *point = NULL;
 	BN_CTX *bnctx = NULL;
 	const BIGNUM *pkey = NULL;
 	char *buffer_in = NULL;
@@ -423,9 +423,9 @@ static PyObject* KeyObject_fingerprint(PyObject *s)
 
 	EVP_MD_CTX md5ctx;
 	char *blob = NULL, *digest = NULL;
-	size_t blob_len;
+	size_t blob_len = 0;
 	size_t digest_len = MD5_LEN; /* MD5 length */
-	uint32_t dlen;
+	uint32_t dlen = 0;
 	PyObject *ret = NULL;
 
 	if (!serialize_key(&blob, &blob_len, self->key, self->nid, 0))
@@ -532,7 +532,7 @@ static const char to_pem_doc[] = "k.to_pem(): get the key PEM-encoded.\nEncodes 
 static PyObject* KeyObject_to_raw(PyObject *s)
 {
 	char *blob = NULL;
-	size_t blob_len;
+	size_t blob_len = 0;
 	PyObject *ret = NULL;
 	KeyObject *self = (KeyObject *)s;
 
@@ -558,7 +558,7 @@ static PyObject* KeyObject_to_ssh(PyObject *s)
 {
 	char *blob = NULL;
 	char *b64 = NULL;
-	size_t blob_len;
+	size_t blob_len = 0;
 	size_t b64_len = 0;
 	PyObject *ret = NULL;
 	KeyObject *self = (KeyObject *)s;
@@ -922,10 +922,10 @@ static PyObject* KeyObject_public_key(PyObject *s)
 
 static PyObject* KeyObject_generate(PyObject *c, PyObject *args)
 {
-	EC_KEY *private;
-	KeyObject *key;
+	EC_KEY *private = NULL;
+	KeyObject *key = NULL;
 	int bits = 0;
-	int nid;
+	int nid = 0;
 
 	if (!PyArg_ParseTuple(args, "i", &bits))
 		return NULL;
@@ -962,9 +962,7 @@ static PyObject* KeyObject_generate(PyObject *c, PyObject *args)
 
 static PyObject* KeyObject_from_string(PyObject *c, PyObject *string)
 {
-	PyObject *ret = NULL;
-
-	ret = KeyObject_from_pem(c, string);
+	PyObject *ret = KeyObject_from_pem(c, string);
 
 	PyErr_Clear();
 
@@ -1167,7 +1165,7 @@ static PyMethodDef module_methods[] =
 PyMODINIT_FUNC
 initecdsa()
 {
-	PyObject *module;
+	PyObject *module = NULL;
 
 	key_Type.tp_new = PyType_GenericNew;
 	key_Type.tp_methods = KeyObject_methods;

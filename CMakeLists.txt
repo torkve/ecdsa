@@ -17,13 +17,17 @@ include_directories(${PYTHON_INCLUDE_DIRS})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 add_definitions(
-    -Wall
+    -std=gnu99
     -pedantic
+    -fno-strict-aliasing  # when Python authors write a line of code, kitten dies
+    -Wall
     -Werror
+    -Wmaybe-uninitialized
+    -Wuninitialized
+    -Wignored-qualifiers
+    -Wshadow
     -Wno-long-long
     -Wno-unknown-pragmas
-    -std=gnu99
-    -fno-strict-aliasing  # when Python authors write a line of code, kitten dies
     )
 
 option(DEBUG_ECDSA "Display debug messages on stderr" FALSE)
