@@ -1010,7 +1010,12 @@ static PyObject* KeyObject_from_pem(PyObject *c, PyObject *string)
 	}
 	else
 	{
-		BIO_reset(bio);
+		if (BIO_reset(bio) != 1)
+		{
+			PyErr_SetString(PyExc_ValueError, "Failed to read key");
+			goto key_from_pem_cleanup;
+
+		}
 		pk = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
 		debug("loaded public key: %lx", (size_t)pk);
 	}
