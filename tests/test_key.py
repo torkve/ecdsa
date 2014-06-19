@@ -1,6 +1,6 @@
 __author__ = 'torkve'
 
-from ecdsa import Key
+from cEcdsa import Key
 from unittest import TestCase, main
 import base64
 

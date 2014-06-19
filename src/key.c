@@ -1,6 +1,6 @@
 /*
  * key.c
- * Python ecdsa.Key class
+ * Python cEcdsa.Key class
  *
  * Copyright © 2014, Vsevolod Velichko
  * All rights reserved.
@@ -813,7 +813,7 @@ static PyObject* KeyObject_has_private(PyObject *s)
 static const char has_private_doc[] = "k.has_private(): check if the key has private component required to sign the data.\n:return: boolean check result";
 
 static PyObject* KeyObject_public_key(PyObject *s);
-static const char public_key_doc[] = "k.public_key(): get key without private exponent.\n:return: self if key is public, else corresponding public ecdsa.Key";
+static const char public_key_doc[] = "k.public_key(): get key without private exponent.\n:return: self if key is public, else corresponding public cEcdsa.Key";
 
 static PyObject* KeyObject_from_string(PyObject *c, PyObject *string);
 static const char from_string_doc[] = "Key.from_string(str): read the key from str, deducing the encoding type.\nCurrently PEM encoding and SSH-encoding without prefixes/suffixes are supported.\n:raise ValueError: in case of key cannot be parsed\n:return: Key object";
@@ -872,7 +872,7 @@ static PyTypeObject key_Type =
 {
 	PyObject_HEAD_INIT(NULL)
 	0,                              /* ob_size */
-	"ecdsa.Key",			/* tp_name */
+	"cEcdsa.Key",			/* tp_name */
 	sizeof(KeyObject),		/* tp_basicsize */
 	0,				/* tp_itemsize */
 	(destructor)KeyObject_dealloc,	/* tp_dealloc */
@@ -1163,7 +1163,7 @@ static PyMethodDef module_methods[] =
 };
 
 PyMODINIT_FUNC
-initecdsa()
+initcEcdsa()
 {
 	PyObject *module = NULL;
 
@@ -1173,7 +1173,7 @@ initecdsa()
 	if (PyType_Ready(&key_Type) < 0)
 		return;
 
-	module = Py_InitModule3("ecdsa", module_methods, "Module providing support for common ECDSA key operations. See `Key` class.");
+	module = Py_InitModule3("cEcdsa", module_methods, "Module providing support for common ECDSA key operations. See `Key` class.");
 	if (module == NULL)
 		return;
 

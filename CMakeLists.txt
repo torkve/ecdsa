@@ -40,9 +40,9 @@ if (${CMAKE_SYSTEM_NAME} MATCHES Linux)
 endif()
 
 file(GLOB SOURCES "src/*.[ch]")
-python_add_module(ecdsa ${SOURCES})
-set_target_properties(ecdsa PROPERTIES PREFIX "")  # older CMake versions don't remove prefix on their own
-target_link_libraries(ecdsa ${RESOLVLIB} ${PYTHON_LIBRARIES} ${OPENSSL_LIBRARIES})
+python_add_module(cEcdsa ${SOURCES})
+set_target_properties(cEcdsa PROPERTIES PREFIX "")  # older CMake versions don't remove prefix on their own
+target_link_libraries(cEcdsa ${RESOLVLIB} ${PYTHON_LIBRARIES} ${OPENSSL_LIBRARIES})
 
 option(INSTALL_DIR "Relative to prefix directory where to install" "")
 if (NOT INSTALL_DIR)
@@ -63,7 +63,7 @@ else()
     set(PYTHON_SITE_DIR "${INSTALL_DIR}")
 endif()
 
-install(TARGETS ecdsa LIBRARY DESTINATION ${PYTHON_SITE_DIR} COMPONENT library)
+install(TARGETS cEcdsa LIBRARY DESTINATION ${PYTHON_SITE_DIR} COMPONENT library)
 
 enable_testing()
 add_test(
