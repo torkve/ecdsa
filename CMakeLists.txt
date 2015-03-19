@@ -35,7 +35,7 @@ if (DEBUG_ECDSA)
     add_definitions(-DDEBUG_ECDSA)
 endif()
 
-if (${CMAKE_SYSTEM_NAME} MATCHES Linux)
+if (${CMAKE_SYSTEM_NAME} MATCHES Linux OR ${CMAKE_SYSTEM_NAME} MATCHES Darwin)
     set (RESOLVLIB resolv)
 endif()
 
