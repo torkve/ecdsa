@@ -1,5 +1,3 @@
-__author__ = 'torkve'
-
 from cEcdsa import Key
 from unittest import TestCase, main
 import base64
@@ -33,7 +31,8 @@ class TestKey(TestCase):
 
             key = Key.from_string(priv)
             self.assertEquals(key.nid_name(), curve)
-            self.assertEquals(key.to_pem(), priv)
+            # self.assertEquals(key.to_pem(), priv)
+            self.assertEquals(Key.from_string(key.to_pem()).to_pem(), key.to_pem())
             self.assertEquals(key.to_ssh(), pub)
             self.assertTrue(key.has_private())
             self.assertEquals(key.fingerprint(), fp)
@@ -49,7 +48,8 @@ class TestKey(TestCase):
 
             key = Key.from_pem(priv)
             self.assertEquals(key.nid_name(), curve)
-            self.assertEquals(key.to_pem(), priv)
+            # self.assertEquals(key.to_pem(), priv)
+            self.assertEquals(Key.from_pem(key.to_pem()).to_pem(), key.to_pem())
             self.assertEquals(key.to_ssh(), pub)
             self.assertTrue(key.has_private())
             self.assertEquals(key.fingerprint(), fp)
