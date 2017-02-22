@@ -3,5 +3,6 @@ CMakeFiles
 __pycache__
 build
 \.orig$
+\.rej$
 \.ropeproject
 \.cache
