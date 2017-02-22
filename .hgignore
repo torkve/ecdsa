@@ -1,3 +1,7 @@
 CMakeCache.txt
 CMakeFiles
 __pycache__
+build
+\.orig$
+\.ropeproject
+\.cache
