@@ -36,6 +36,7 @@
 #include "misc.h"
 #include <openssl/ecdsa.h>
 #include <openssl/pem.h>
+#include <openssl/err.h>
 
 #ifndef PyLong_FromLong
 #define PyLong_FromLong PyInt_FromLong
@@ -132,6 +133,7 @@ vpk_cleanup:
 	if (q)
 		EC_POINT_free(q);
 
+	ERR_clear_error();
 	return res;
 }
 
@@ -179,6 +181,7 @@ static inline int validate_private_key(const EC_KEY *key)
 vprk_cleanup:
 	if (bnctx)
 		BN_CTX_free(bnctx);
+	ERR_clear_error();
 	return res;
 }
 
@@ -265,6 +268,7 @@ pks_cleanup:
 		explicit_bzero(exponent, exponent_len);
 		free(exponent);
 	}
+	ERR_clear_error();
 	return res;
 }
 
@@ -392,6 +396,7 @@ uk_cleanup:
 	if (exponent)
 		BN_clear_free(exponent);
 
+	ERR_clear_error();
 	return nid;
 }
 
@@ -477,6 +482,7 @@ fp_cleanup:
 		explicit_bzero(digest, digest_len);
 		free(digest);
 	}
+	ERR_clear_error();
 	return ret;
 }
 
@@ -524,6 +530,7 @@ ktp_cleanup:
 	if (bio)
 		BIO_free(bio);
 
+	ERR_clear_error();
 	return ret;
 }
 
@@ -549,6 +556,7 @@ ktr_cleanup:
 		free(blob);
 	}
 
+	ERR_clear_error();
 	return ret;
 }
 
@@ -584,6 +592,7 @@ kts_cleanup:
 		explicit_bzero(b64, b64_len);
 		free(b64);
 	}
+	ERR_clear_error();
 	return ret;
 }
 
@@ -677,6 +686,7 @@ sign_cleanup:
 		explicit_bzero(ret_str, ret_len);
 		free(ret_str);
 	}
+	ERR_clear_error();
 	return ret;
 }
 
@@ -796,6 +806,7 @@ verify_cleanup:
 
 	if (signature)
 		ECDSA_SIG_free(signature);
+	ERR_clear_error();
 	return ret;
 }
 
@@ -973,6 +984,7 @@ static PyObject* KeyObject_from_string(PyObject *c, PyObject *string)
 
 	if (!ret)
 		PyErr_SetString(PyExc_ValueError, "Key not found in string");
+	ERR_clear_error();
 	return ret;
 }
 
@@ -1058,6 +1070,7 @@ key_from_pem_cleanup:
 		BIO_free(bio);
 	if (pk)
 		EVP_PKEY_free(pk);
+	ERR_clear_error();
 	return (PyObject *)ret;
 }
 
@@ -1116,6 +1129,7 @@ key_from_ssh_cleanup:
 		free(buffer);
 	}
 
+	ERR_clear_error();
 	return (PyObject *)ret;
 }
 
@@ -1152,6 +1166,7 @@ destroy_key_from_raw_cleanup:
 	if (key)
 		EC_KEY_free(key);
 key_from_raw_cleanup:
+	ERR_clear_error();
 	return (PyObject *)ret;
 }
 
