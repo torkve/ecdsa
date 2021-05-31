@@ -76,7 +76,7 @@ static const keytype keytypes[] =
 	{NULL},
 };
 
-static inline void explicit_bzero(void *mem, size_t mem_len)
+static inline void _explicit_bzero(void *mem, size_t mem_len)
 {
 #pragma optimize("-no-dead-code-removal")
 #pragma optimize("-no-dce")
@@ -236,7 +236,7 @@ static inline int str_of_bn(const BIGNUM *bn, char **dst, size_t *dst_len)
 	}
 	debugs("BN is not zero");
 
-	if (bn->neg)
+	if (BN_is_negative(bn))
 	{
 		debugs("BN is negative, not supported");
 		return 0;
@@ -281,7 +281,7 @@ static inline int str_of_bn(const BIGNUM *bn, char **dst, size_t *dst_len)
 	if (!ptr)
 	{
 		debugs("allocation for BN substring failed");
-		explicit_bzero(*dst, len);
+		_explicit_bzero(*dst, len);
 		free(*dst);
 		*dst = NULL;
 		return 0;
@@ -290,7 +290,7 @@ static inline int str_of_bn(const BIGNUM *bn, char **dst, size_t *dst_len)
 	write_u32(&ptr2, len - 5);
 	memcpy(ptr2, *dst + 5, len - 5);
 	debug("moved BN[1:] (%lu): `%s`", len - 5, ptr2);
-	explicit_bzero(*dst, len);
+	_explicit_bzero(*dst, len);
 	free(*dst);
 	*dst = ptr;
 	*dst_len = len - 1;
@@ -359,7 +359,7 @@ static inline int read_point(char **str, size_t *str_len, const EC_GROUP *curve,
 rp_cleanup:
 	if (buf)
 	{
-		explicit_bzero(buf, buf_len);
+		_explicit_bzero(buf, buf_len);
 		free(buf);
 
 	}
@@ -411,7 +411,7 @@ static inline int decode_base64(const char *src, size_t src_len, char **dst, siz
 
 	if ((sz = b64_pton(src, (unsigned char *)*dst, src_len)) <= 0)
 	{
-		explicit_bzero(*dst, src_len);
+		_explicit_bzero(*dst, src_len);
 		free(*dst);
 		*dst = NULL;
 		return 0;
@@ -432,7 +432,7 @@ static inline int encode_base64(const char *src, size_t src_len, char **dst, siz
 
 	if ((sz = b64_ntop((unsigned char *)src, src_len, *dst, src_len * 2)) <= 0)
 	{
-		explicit_bzero(*dst, src_len * 2);
+		_explicit_bzero(*dst, src_len * 2);
 		free(*dst);
 		*dst = NULL;
 		return 0;

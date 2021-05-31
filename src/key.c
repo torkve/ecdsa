@@ -265,7 +265,7 @@ pks_cleanup:
 		BN_CTX_free(bnctx);
 	if (exponent)
 	{
-		explicit_bzero(exponent, exponent_len);
+		_explicit_bzero(exponent, exponent_len);
 		free(exponent);
 	}
 	ERR_clear_error();
@@ -468,18 +468,18 @@ static PyObject* KeyObject_fingerprint(PyObject *s)
 	ret = PyString_FromStringAndSize(digest, digest_len);
 fp_cleanup:
 	EVP_MD_CTX_cleanup(&md5ctx);
-	explicit_bzero(&md5ctx, sizeof(md5ctx));
+	_explicit_bzero(&md5ctx, sizeof(md5ctx));
 
 	if (blob != NULL)
 	{
 		/* Cleanup memory for security reasons */
-		explicit_bzero(blob, blob_len);
+		_explicit_bzero(blob, blob_len);
 		free(blob);
 	}
 	if (digest != NULL)
 	{
 		/* Cleanup memory for security reasons */
-		explicit_bzero(digest, digest_len);
+		_explicit_bzero(digest, digest_len);
 		free(digest);
 	}
 	ERR_clear_error();
@@ -552,7 +552,7 @@ ktr_cleanup:
 	if (blob)
 	{
 		/* Cleanup memory for security reasons */
-		explicit_bzero(blob, blob_len);
+		_explicit_bzero(blob, blob_len);
 		free(blob);
 	}
 
@@ -583,13 +583,13 @@ kts_cleanup:
 	if (blob)
 	{
 		/* Cleanup memory for security reasons */
-		explicit_bzero(blob, blob_len);
+		_explicit_bzero(blob, blob_len);
 		free(blob);
 	}
 
 	if (b64)
 	{
-		explicit_bzero(b64, b64_len);
+		_explicit_bzero(b64, b64_len);
 		free(b64);
 	}
 	ERR_clear_error();
@@ -673,17 +673,17 @@ sign_cleanup:
 		ECDSA_SIG_free(sig);
 	if (tmp)
 	{
-		explicit_bzero(tmp, tmp_len);
+		_explicit_bzero(tmp, tmp_len);
 		free(tmp);
 	}
 	if (tmp2)
 	{
-		explicit_bzero(tmp2, tmp2_len);
+		_explicit_bzero(tmp2, tmp2_len);
 		free(tmp2);
 	}
 	if (ret_str)
 	{
-		explicit_bzero(ret_str, ret_len);
+		_explicit_bzero(ret_str, ret_len);
 		free(ret_str);
 	}
 	ERR_clear_error();
@@ -794,13 +794,13 @@ verify_fail:
 verify_cleanup:
 	if (curve_name)
 	{
-		explicit_bzero(curve_name, curve_name_len);
+		_explicit_bzero(curve_name, curve_name_len);
 		free(curve_name);
 	}
 
 	if (blob)
 	{
-		explicit_bzero(blob, curve_name_len);
+		_explicit_bzero(blob, curve_name_len);
 		free(blob);
 	}
 
@@ -1125,7 +1125,7 @@ destroy_key_from_ssh_cleanup:
 key_from_ssh_cleanup:
 	if(buffer)
 	{
-		explicit_bzero(buffer, buffer_len);
+		_explicit_bzero(buffer, buffer_len);
 		free(buffer);
 	}
 
