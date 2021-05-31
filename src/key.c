@@ -426,7 +426,7 @@ static PyObject* KeyObject_fingerprint(PyObject *s)
 {
 	KeyObject *self = (KeyObject *)s;
 
-	EVP_MD_CTX md5ctx;
+	EVP_MD_CTX *md5ctx = EVP_MD_CTX_new();
 	char *blob = NULL, *digest = NULL;
 	size_t blob_len = 0;
 	size_t digest_len = MD5_LEN; /* MD5 length */
@@ -443,18 +443,18 @@ static PyObject* KeyObject_fingerprint(PyObject *s)
 		goto fp_cleanup;
 	}
 
-	EVP_MD_CTX_init(&md5ctx);
-	if (EVP_DigestInit_ex(&md5ctx, EVP_md5(), NULL) != 1)
+	EVP_MD_CTX_init(md5ctx);
+	if (EVP_DigestInit_ex(md5ctx, EVP_md5(), NULL) != 1)
 	{
 		PyErr_SetString(PyExc_MemoryError, "Can't initiliaze hash algorithm");
 		goto fp_cleanup;
 	}
-	if (EVP_DigestUpdate(&md5ctx, blob, blob_len) != 1)
+	if (EVP_DigestUpdate(md5ctx, blob, blob_len) != 1)
 	{
 		PyErr_SetString(PyExc_MemoryError, "Can't initiliaze hash algorithm");
 		goto fp_cleanup;
 	}
-	if (EVP_DigestFinal_ex(&md5ctx, (unsigned char *)digest, &dlen) != 1)
+	if (EVP_DigestFinal_ex(md5ctx, (unsigned char *)digest, &dlen) != 1)
 	{
 		PyErr_SetString(PyExc_MemoryError, "Can't make fingerprint");
 		goto fp_cleanup;
@@ -467,8 +467,8 @@ static PyObject* KeyObject_fingerprint(PyObject *s)
 
 	ret = PyString_FromStringAndSize(digest, digest_len);
 fp_cleanup:
-	EVP_MD_CTX_cleanup(&md5ctx);
-	_explicit_bzero(&md5ctx, sizeof(md5ctx));
+	EVP_MD_CTX_reset(md5ctx);
+	EVP_MD_CTX_free(md5ctx);
 
 	if (blob != NULL)
 	{
@@ -631,15 +631,15 @@ static PyObject* KeyObject_sign(PyObject *s, PyObject *data)
 	}
 
 	debugs("dumping r");
-	debug_bn(r, sig->r);
-	if(!str_of_bn(sig->r, &tmp, &tmp_len))
+	debug_bn(r, ECDSA_SIG_get0_r(sig));
+	if(!str_of_bn(ECDSA_SIG_get0_r(sig), &tmp, &tmp_len))
 	{
 		PyErr_SetString(PyExc_ValueError, "Failed making signature");
 		goto sign_cleanup;
 	}
 	debugs("dumping s");
-	debug_bn(s, sig->s);
-	if (!str_of_bn(sig->s, &tmp2, &tmp2_len))
+	debug_bn(s, ECDSA_SIG_get0_s(sig));
+	if (!str_of_bn(ECDSA_SIG_get0_s(sig), &tmp2, &tmp2_len))
 	{
 		PyErr_SetString(PyExc_ValueError, "Failed making signature");
 		goto sign_cleanup;
@@ -703,6 +703,7 @@ static PyObject* KeyObject_verify(PyObject *s, PyObject *args)
 
 	char *curve_name = NULL, *blob = NULL;
 	size_t curve_name_len = 0, blob_len = 0;
+	BIGNUM *sig_r = NULL, *sig_s = NULL;
 
 	ECDSA_SIG *signature = NULL;
 
@@ -759,18 +760,24 @@ static PyObject* KeyObject_verify(PyObject *s, PyObject *args)
 
 	debugs("verifying signature!");
 
-	if (!read_bn(&tmp, &sig_len, signature->r))
+	sig_r = BN_new();
+	if (!read_bn(&tmp, &sig_len, sig_r))
 	{
 		debugs("couldn't read r");
+		BN_free(sig_r);
 		goto verify_fail;
 	}
-	debug_bn(r, signature->r);
-	if (!read_bn(&tmp, &sig_len, signature->s))
+	debug_bn(r, sig_r);
+	sig_s = BN_new();
+	if (!read_bn(&tmp, &sig_len, sig_s))
 	{
 		debugs("couldn't read s");
+		BN_free(sig_r);
+		BN_free(sig_s);
 		goto verify_fail;
 	}
-	debug_bn(s, signature->s);
+	debug_bn(s, sig_s);
+	ECDSA_SIG_set0(signature, sig_r, sig_s);
 	if (sig_len)
 	{
 		debug("trailing characters on the end of the blob (%lu)", sig_len);
@@ -1035,7 +1042,7 @@ static PyObject* KeyObject_from_pem(PyObject *c, PyObject *string)
 		PyErr_SetString(PyExc_ValueError, "Invalid key");
 		goto key_from_pem_cleanup;
 	}
-	if (pk->type != EVP_PKEY_EC)
+	if (EVP_PKEY_id(pk) != EVP_PKEY_EC)
 	{
 		PyErr_SetString(PyExc_ValueError, "Key type is not ECDSA");
 		goto key_from_pem_cleanup;
