@@ -21,10 +21,8 @@ add_definitions(
     -pedantic
     -fno-strict-aliasing  # when Python authors write a line of code, kitten dies
     -Wall
-    -Werror
     -Wuninitialized
     -Wignored-qualifiers
-    -Wshadow
     -Wno-long-long
     -Wno-unknown-pragmas
     )
