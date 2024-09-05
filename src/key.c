@@ -1185,7 +1185,7 @@ static PyMethodDef module_methods[] =
 };
 
 PyMODINIT_FUNC
-initcEcdsa()
+initcEcdsa(void)
 {
 	PyObject *module = NULL;
 
